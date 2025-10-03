@@ -48,6 +48,7 @@ Servidor: Apache (XAMPP/Docker)
 
 Otros: PhpSpreadsheet para importación desde Excel
 
+-----------------------------------------------
 📂 Estructura del proyecto
 bodega_sonda/
 ├── config/          # Configuración de base de datos
@@ -58,6 +59,8 @@ bodega_sonda/
 ├── dashboard.php    # Panel principal
 ├── scan_barcode.php # Escaneo rápido de códigos
 └── ...
+
+----------------------------------------------
 
 ⚙️ Instalación
 Requisitos
@@ -74,7 +77,7 @@ Pasos
 
 Clonar el repositorio:
 
-git clone https://github.com/tuusuario/bodega_sonda.git
+git clone https://github.com/jaderkamui/bodega
 cd bodega_sonda
 
 
