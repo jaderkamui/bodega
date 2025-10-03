@@ -1,0 +1,17 @@
+{
+    "name": "jader/bodega_sonda",
+    "autoload": {
+        "psr-4": {
+            "Jader\\BodegaSonda\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "jaderkamui",
+            "email": "tecnico.jader@gmail.com"
+        }
+    ],
+    "require": {
+        "phpoffice/phpspreadsheet": "^4.5"
+    }
+}
