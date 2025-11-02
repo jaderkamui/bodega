@@ -5,7 +5,15 @@ require 'config/db.php';
 
 $rol = $_SESSION['role'] ?? 'viewer';
 $puedeEditar = in_array($rol, ['admin','editor']);
-$areaUsuario = $_SESSION['area'] ?? null; // área guardada en sesión
+$areaUsuario = $_SESSION['area'] ?? null;
+$divisionName = $_SESSION['division_name'] ?? null; // área guardada en sesión
+
+// ===== Notificaciones no leídas =====
+$userId = $_SESSION['user_id'];
+$notiStmt = $conn->prepare("SELECT * FROM notificaciones WHERE user_id = ? AND leido = 0 ORDER BY created_at DESC LIMIT 5");
+$notiStmt->execute([$userId]);
+$notificaciones = $notiStmt->fetchAll(PDO::FETCH_ASSOC);
+$notiCount = count($notificaciones);
 
 $mensaje = '';
 $resultado = null;
@@ -116,14 +124,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 </style>
 </head>
 <body class="bg-light">
+<!-- NAVBAR igual al dashboard -->
 <nav class="navbar navbar-dark bg-dark border-bottom shadow-sm">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-        <!-- Ponemos id para el huevo de pascua -->
-        <img id="logo-egg" src="assets/logo.png" alt="Sonda Logo" height="120" style="cursor:pointer" title="">
-        <span class="navbar-brand h4 mb-0 text-white">Búsqueda por código de barras</span>
-        <div>
-            <span class="me-3 text-white">👤 <?= htmlspecialchars($_SESSION['user']) ?> (<?= htmlspecialchars($_SESSION['role'] ?? '') ?>)</span>
-            <a href="dashboard.php" class="btn btn-outline-light btn-sm">Volver</a>
+        <img src="assets/logo.png" alt="Sonda Logo" height="120">
+        <span class="navbar-brand h4 mb-0 text-white">Sistema de Bodega Sonda</span>
+        <div class="d-flex align-items-center">
+            <span class="me-3 text-white">
+                Bienvenido 👤 <?= htmlspecialchars($_SESSION['user']) ?>
+                / (<?= htmlspecialchars($_SESSION['role']) ?><?= $areaUsuario ? " - ".htmlspecialchars($areaUsuario) : "" ?>)
+                <?php if ($divisionName): ?>
+                    <span class="badge text-bg-secondary ms-2"><?= htmlspecialchars($divisionName) ?></span>
+                <?php endif; ?>
+            </span>
+
+            <div class="dropdown me-3">
+                <button class="btn btn-outline-light position-relative dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    🔔
+                    <?php if ($notiCount > 0): ?>
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                            <?= $notiCount ?>
+                        </span>
+                    <?php endif; ?>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end noti-dropdown">
+                    <?php if ($notiCount === 0): ?>
+                        <li><span class="dropdown-item-text text-muted">No tienes notificaciones nuevas</span></li>
+                    <?php else: ?>
+                        <?php foreach ($notificaciones as $n): ?>
+                            <li>
+                                <a class="dropdown-item" href="<?= htmlspecialchars($n['link']) ?>">
+                                    <?= htmlspecialchars($n['mensaje']) ?><br>
+                                    <small class="text-muted"><?= htmlspecialchars($n['created_at']) ?></small>
+                                </a>
+                            </li>
+                            <li><hr class="dropdown-divider"></li>
+                        <?php endforeach; ?>
+                        <li><a class="dropdown-item text-center" href="ver_notificaciones.php">📜 Ver todas</a></li>
+                    <?php endif; ?>
+                </ul>
+            </div>
+          <a href="dashboard.php" class="btn btn-outline-light me-2">🏠 Dashboard</a>
+            <a href="logout.php" class="btn btn-outline-light">Cerrar sesión</a>
         </div>
     </div>
 </nav>
@@ -181,6 +223,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             </div>
         <?php endif; ?>
     <?php endif; ?>
+      <a href="dashboard.php" class="btn btn-secondary mt-3">Volver</a>
 </div>
 
 <!-- Overlay del juego -->

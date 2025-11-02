@@ -4,167 +4,320 @@ if (!isset($_SESSION['user']) || $_SESSION['role'] !== 'admin') {
     header("Location: dashboard.php");
     exit;
 }
-
 require 'config/db.php';
 
 $mensaje = '';
 
-// Traducción de roles
-$rolesMap = [
-    'admin'  => 'Administrador',
-    'editor' => 'Editor',
-    'viewer' => 'Lector'
-];
+$rolesMap      = ['admin'=>'Administrador','editor'=>'Editor','viewer'=>'Lector'];
+$rolesValidos  = ['viewer','editor','admin'];
+$areasValidas  = ['Radios','Redes','SCA','Libreria'];
+$divMapFull    = ['CHQ'=>'Chuquicamata','RT'=>'Radomiro Tomic','DMH'=>'Ministro Hales','GM'=>'Gabriela Mistral'];
+$divIdByCode   = ['CHQ'=>1,'RT'=>2,'DMH'=>3,'GM'=>4];
+function fullDivName($code,$map){ return $map[$code] ?? $code; }
 
-// Actualizar usuario
+// Todas las bodegas (lista plana)
+$bStmt = $conn->query("SELECT id, nombre, division FROM bodegas ORDER BY nombre");
+$todasBodegas = $bStmt->fetchAll(PDO::FETCH_ASSOC);
+
+// Asignaciones user->bodegas
+$ab = $conn->query("SELECT user_id, bodega_id FROM user_bodegas");
+$userBodegas = [];
+foreach ($ab as $row) {
+    $userBodegas[(int)$row['user_id']][] = (int)$row['bodega_id'];
+}
+
+// POST
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    if (isset($_POST['update_user']) && isset($_POST['user_id'], $_POST['new_username'], $_POST['new_role'], $_POST['new_area'])) {
-        $userId = (int) $_POST['user_id'];
-        $newUsername = trim($_POST['new_username']);
-        $newRole = $_POST['new_role']; // admin/editor/viewer
-        $newArea = $_POST['new_area'];
 
-        $roles = ['admin', 'editor', 'viewer'];
-        $areas = ['Radios', 'Redes', 'SCA', 'Libreria'];
+    // Guardar fila
+    if (isset($_POST['save_row'])) {
+        $uid  = (int)($_POST['user_id'] ?? 0);
+        if ($uid > 0) {
+            $cur = $conn->prepare("SELECT username, email, role, area, division FROM users WHERE id=?");
+            $cur->execute([$uid]);
+            $before = $cur->fetch(PDO::FETCH_ASSOC);
+            if ($before) {
+                $newUsername = trim($_POST['new_username'] ?? '');
+                $newRole     = $_POST['new_role'] ?? $before['role'];
+                $newArea     = $_POST['new_area'] ?? $before['area'];
+                $newDiv      = $_POST['new_division'] ?? $before['division'];
 
-        if (in_array($newRole, $roles) && in_array($newArea, $areas) && $newUsername !== '') {
+                if ($newUsername === '') $newUsername = $before['username'];
+                if (!in_array($newRole, $rolesValidos, true)) $newRole = $before['role'];
+                if (!in_array($newArea, $areasValidas, true))  $newArea = $before['area'];
+                if (!isset($divIdByCode[$newDiv]))             $newDiv  = $before['division'];
 
-            // Obtener datos actuales antes de actualizar
-            $stmt = $conn->prepare("SELECT username, role, area FROM users WHERE id = ?");
-            $stmt->execute([$userId]);
-            $usuarioActual = $stmt->fetch(PDO::FETCH_ASSOC);
+                $changes = [];
+                if ($before['username'] !== $newUsername) $changes[] = ['campo'=>'Nombre','old'=>$before['username'],'new'=>$newUsername];
+                if ($before['role']     !== $newRole)     $changes[] = ['campo'=>'Rol','old'=>($rolesMap[$before['role']]??$before['role']),'new'=>($rolesMap[$newRole]??$newRole)];
+                if ($before['area']     !== $newArea)     $changes[] = ['campo'=>'Área','old'=>$before['area'],'new'=>$newArea];
+                if ($before['division'] !== $newDiv)      $changes[] = ['campo'=>'División','old'=>fullDivName($before['division'],$divMapFull),'new'=>fullDivName($newDiv,$divMapFull)];
 
-            // Actualizar usuario
-            $stmt = $conn->prepare("UPDATE users SET username = ?, role = ?, area = ? WHERE id = ?");
-            $stmt->execute([$newUsername, $newRole, $newArea, $userId]);
+                $upd = $conn->prepare("UPDATE users SET username=?, role=?, area=?, division=?, division_id=? WHERE id=?");
+                $upd->execute([$newUsername,$newRole,$newArea,$newDiv,$divIdByCode[$newDiv],$uid]);
 
-            // Log: usuario actualizado con valores antes y después
-            $log = $conn->prepare("INSERT INTO logs (user_id, action, details, old_value, new_value, created_at) 
-                                   VALUES (?, 'user_updated', ?, ?, ?, NOW())");
-            $log->execute([
-                $_SESSION['user_id'],
-                "Admin actualizó al usuario ID {$userId}",
-                "Nombre: {$usuarioActual['username']}, Rol: {$rolesMap[$usuarioActual['role']]}, Área: {$usuarioActual['area']}",
-                "Nombre: {$newUsername}, Rol: {$rolesMap[$newRole]}, Área: {$newArea}"
-            ]);
+                $seleccionadas = isset($_POST['bodegas']) && is_array($_POST['bodegas']) ? array_map('intval', $_POST['bodegas']) : [];
+                $antesBod = $userBodegas[$uid] ?? [];
+                $conn->prepare("DELETE FROM user_bodegas WHERE user_id=?")->execute([$uid]);
+                if (!empty($seleccionadas)) {
+                    $ins = $conn->prepare("INSERT INTO user_bodegas (user_id, bodega_id) VALUES (?, ?)");
+                    foreach ($seleccionadas as $bid) $ins->execute([$uid,$bid]);
+                }
+                sort($antesBod); $despuesBod = $seleccionadas; sort($despuesBod);
+                if ($antesBod !== $despuesBod) {
+                    $oldNames = [];
+                    if (!empty($antesBod)) {
+                        $q = $conn->prepare("SELECT nombre FROM bodegas WHERE id IN (".implode(',',array_fill(0,count($antesBod),'?')).")");
+                        $q->execute($antesBod); $oldNames = $q->fetchAll(PDO::FETCH_COLUMN);
+                    }
+                    $newNames = [];
+                    if (!empty($despuesBod)) {
+                        $q = $conn->prepare("SELECT nombre FROM bodegas WHERE id IN (".implode(',',array_fill(0,count($despuesBod),'?')).")");
+                        $q->execute($despuesBod); $newNames = $q->fetchAll(PDO::FETCH_COLUMN);
+                    }
+                    $changes[] = ['campo'=>'Bodegas','old'=>implode(', ',$oldNames),'new'=>implode(', ',$newNames)];
+                    $userBodegas[$uid] = $despuesBod;
+                }
 
-            $mensaje = "Usuario actualizado correctamente.";
+                if (!empty($changes)) {
+                    foreach ($changes as $c) {
+                        $conn->prepare("INSERT INTO logs (user_id, action, details, old_value, new_value, created_at)
+                                        VALUES (?, 'user_row_updated', ?, ?, ?, NOW())")
+                         ->execute([$_SESSION['user_id'],"Actualizó {$c['campo']} del usuario ID {$uid}",$c['old']??'',$c['new']??'']);
+                    }
+                }
+
+                if ($uid === (int)$_SESSION['user_id']) {
+                    $_SESSION['user'] = $newUsername;
+                    $_SESSION['role'] = $newRole;
+                    $_SESSION['area'] = $newArea;
+                    $_SESSION['division'] = $newDiv;
+                    $_SESSION['division_name'] = fullDivName($newDiv,$divMapFull);
+                    $me = $conn->prepare("SELECT ub.bodega_id, b.nombre FROM user_bodegas ub JOIN bodegas b ON b.id=ub.bodega_id WHERE ub.user_id=?");
+                    $me->execute([$uid]); $ids=[]; $map=[];
+                    foreach ($me as $r){ $ids[]=(int)$r['bodega_id']; $map[(int)$r['bodega_id']]=$r['nombre']; }
+                    $_SESSION['bodegas_ids']=$ids; $_SESSION['bodegas_map']=$map;
+                }
+
+                $mensaje = "Cambios guardados.";
+            }
         }
     }
 
-    // Eliminar usuario
-    if (isset($_POST['delete_user']) && isset($_POST['user_id'])) {
-        $userId = (int) $_POST['user_id'];
-        if ($userId !== $_SESSION['user_id']) { // evitar que el admin se borre a sí mismo
-
-            // Obtener info antes de eliminar
-            $stmt = $conn->prepare("SELECT username, role, area FROM users WHERE id = ?");
-            $stmt->execute([$userId]);
-            $userData = $stmt->fetch(PDO::FETCH_ASSOC);
-
-            $stmt = $conn->prepare("DELETE FROM users WHERE id = ?");
-            $stmt->execute([$userId]);
-
-            // Log: usuario eliminado
-            $log = $conn->prepare("INSERT INTO logs (user_id, action, details, old_value, new_value, created_at) 
-                                   VALUES (?, 'user_deleted', ?, ?, NULL, NOW())");
-            $log->execute([
-                $_SESSION['user_id'],
-                "Admin eliminó al usuario ID {$userId}",
-                "Nombre: {$userData['username']}, Rol: {$rolesMap[$userData['role']]}, Área: {$userData['area']}"
-            ]);
-
-            $mensaje = "Usuario eliminado correctamente.";
+    // Eliminar
+    if (isset($_POST['delete_user'])) {
+        $uid = (int)($_POST['user_id'] ?? 0);
+        if ($uid > 0) {
+            if ($uid === (int)$_SESSION['user_id']) {
+                $mensaje = "No puedes eliminar tu propio usuario.";
+            } else {
+                $info = $conn->prepare("SELECT username, role, area, division FROM users WHERE id=?");
+                $info->execute([$uid]); $u = $info->fetch(PDO::FETCH_ASSOC);
+                $conn->prepare("DELETE FROM user_bodegas WHERE user_id=?")->execute([$uid]);
+                $conn->prepare("DELETE FROM users WHERE id=?")->execute([$uid]);
+                $conn->prepare("INSERT INTO logs (user_id, action, details, old_value, new_value, created_at)
+                                VALUES (?, 'user_deleted', ?, ?, NULL, NOW())")
+                     ->execute([$_SESSION['user_id'],
+                                "Eliminó usuario ID {$uid}",
+                                $u ? "Nombre: {$u['username']} | Rol: ".($rolesMap[$u['role']]??$u['role'])." | Área: {$u['area']} | División: ".fullDivName($u['division'],$divMapFull) : '(desconocido)']);
+                $mensaje = "Usuario eliminado.";
+            }
         }
     }
 }
 
-// Obtener todos los usuarios
-$stmt = $conn->query("SELECT id, username, email, role, area FROM users");
-$usuarios = $stmt->fetchAll();
-?>
+// Usuarios
+$stmt = $conn->query("SELECT id, username, email, role, area, division FROM users ORDER BY id ASC");
+$usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
+// Notificaciones navbar
+$userIdSess = (int)$_SESSION['user_id'];
+$notiStmt = $conn->prepare("SELECT * FROM notificaciones WHERE user_id = ? AND leido = 0 ORDER BY created_at DESC LIMIT 5");
+$notiStmt->execute([$userIdSess]); $notificaciones = $notiStmt->fetchAll(PDO::FETCH_ASSOC);
+$notiCount = count($notificaciones);
+
+$areaUsuario  = $_SESSION['area'] ?? '';
+$divisionName = $_SESSION['division_name'] ?? null;
+?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <title>Gestión de Usuarios - Bodega Sonda</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<meta charset="UTF-8">
+<title>Gestión de Usuarios - Bodega Sonda</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+<style>
+    body{font-size:14px;}
+    .table-sm> :not(caption)>*>*{padding:.35rem .5rem;}
+    .small-table{table-layout:fixed;}
+    th.col-nombre{width:180px;}
+    th.col-email{width:140px;}
+    th.col-rol{width:140px;}
+    th.col-area{width:200px;}
+    th.col-bodegas{width:220px;}
+    th.col-division{width:180px;}
+    th.col-acciones{width:160px;}
+    .cell-input{height:31px;padding:.25rem .5rem;font-size:14px;}
+    .email-wrap{max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+    .bodega-grid {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  max-height: 220px;       /* limita la altura si hay muchas bodegas */
+  overflow-y: auto;        /* agrega scroll vertical si son demasiadas */
+  padding-right: 4px;
+}
+    .bodega-item {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: .4rem;
+  padding: .25rem .45rem;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+}
+    .bodega-item input {
+  margin-right: .35rem;
+  transform: scale(.9);
+}
+    .btn-compact{padding:.3rem .55rem;font-size:.85rem;}
+    @media (max-width: 1200px){
+        th.col-bodegas{width:320px;}
+        .bodega-grid{grid-template-columns:repeat(2,minmax(140px,1fr));}
+    }
+</style>
 </head>
 <body class="bg-light">
+
 <nav class="navbar navbar-dark bg-dark border-bottom shadow-sm">
     <div class="container-fluid d-flex justify-content-between align-items-center">
         <img src="assets/logo.png" alt="Sonda Logo" height="120">
         <span class="navbar-brand h4 mb-0 text-white">Sistema de Bodega Sonda</span>
-            <div>
-                <span class="me-3 text-white">Bienvenido 👤 <?= htmlspecialchars($_SESSION['user']) ?> / (<?= $rolesMap[$_SESSION['role']] ?? $_SESSION['role'] ?>)</span>
-                <a href="dashboard.php" class="btn btn-outline-light btn-sm">Volver</a>
+        <div class="d-flex align-items-center">
+            <span class="me-3 text-white">
+                Bienvenido 👤 <?= htmlspecialchars($_SESSION['user']) ?>
+                / (<?= htmlspecialchars($_SESSION['role']) ?><?= $areaUsuario ? " - ".htmlspecialchars($areaUsuario) : "" ?>)
+                <?php if ($divisionName): ?><span class="badge text-bg-secondary ms-2"><?= htmlspecialchars($divisionName) ?></span><?php endif; ?>
+            </span>
+            <div class="dropdown me-3">
+                <button class="btn btn-outline-light position-relative dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                    🔔
+                    <?php if ($notiCount > 0): ?>
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"><?= $notiCount ?></span>
+                    <?php endif; ?>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end" style="max-height:300px;overflow-y:auto">
+                    <?php if ($notiCount === 0): ?>
+                        <li><span class="dropdown-item-text text-muted">No tienes notificaciones nuevas</span></li>
+                    <?php else: foreach ($notificaciones as $n): ?>
+                        <li>
+                            <a class="dropdown-item" href="<?= htmlspecialchars($n['link']) ?>">
+                                <?= htmlspecialchars($n['mensaje']) ?><br>
+                                <small class="text-muted"><?= htmlspecialchars($n['created_at']) ?></small>
+                            </a>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                    <?php endforeach; endif; ?>
+                </ul>
             </div>
+            <a href="dashboard.php" class="btn btn-outline-light me-2">🏠 Dashboard</a>
+            <a href="logout.php" class="btn btn-outline-light">Cerrar sesión</a>
+        </div>
     </div>
 </nav>
 
-<div class="container mt-5">
-    <h3 class="mb-4">Gestión de Usuarios</h3>
+<div class="container mt-4">
+    <h3 class="mb-3">Gestión de Usuarios</h3>
 
     <?php if (!empty($mensaje)): ?>
-        <div class="alert alert-success"><?= $mensaje ?></div>
+        <div class="alert alert-info py-2"><?= htmlspecialchars($mensaje) ?></div>
     <?php endif; ?>
 
-    <table class="table table-striped table-bordered">
-        <thead class="table-dark">
-            <tr>
-                <th>ID</th>
-                <th>Nombre</th>
-                <th>Email</th>
-                <th>Rol</th>
-                <th>Área</th>
-                <th>Acciones</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php foreach ($usuarios as $u): ?>
+    <div class="table-responsive">
+        <table class="table table-striped table-bordered table-sm align-middle small-table mb-0">
+            <thead class="table-dark">
                 <tr>
-                    <td><?= $u['id'] ?></td>
-                    <td><?= htmlspecialchars($u['username']) ?></td>
-                    <td><?= htmlspecialchars($u['email']) ?></td>
-                    <td><?= $rolesMap[$u['role']] ?? $u['role'] ?></td>
-                    <td><?= $u['area'] ?></td>
+                    <th class="col-nombre">Nombre</th>
+                    <th class="col-email">Email</th>
+                    <th class="col-rol">Rol</th>
+                    <th class="col-area">Área</th>
+                    <th class="col-bodegas">Bodegas asignadas</th>
+                    <th class="col-division">División</th>
+                    <th class="col-acciones">Acciones</th>
+                </tr>
+            </thead>
+            <tbody>
+            <?php foreach ($usuarios as $u):
+                $uid = (int)$u['id'];
+                $asignadas = $userBodegas[$uid] ?? [];
+            ?>
+                <tr>
+                <form method="POST">
+                    <input type="hidden" name="user_id" value="<?= $uid ?>">
+
+                    <!-- Nombre -->
+                    <td><input type="text" name="new_username" class="form-control form-control-sm cell-input" value="<?= htmlspecialchars($u['username']) ?>" required></td>
+
+                    <!-- Email (solo lectura, compacto con elipsis) -->
+                    <td><div class="email-wrap" title="<?= htmlspecialchars($u['email']) ?>"><?= htmlspecialchars($u['email']) ?></div></td>
+
+                    <!-- Rol -->
                     <td>
-                        <form method="POST" class="row g-1">
-                            <input type="hidden" name="user_id" value="<?= $u['id'] ?>">
-                            <div class="col-md-3">
-                                <input type="text" name="new_username" class="form-control form-control-sm" value="<?= htmlspecialchars($u['username']) ?>" required>
-                            </div>
-                            <div class="col-md-3">
-                                <select name="new_role" class="form-select form-select-sm">
-                                    <option value="viewer" <?= $u['role'] === 'viewer' ? 'selected' : '' ?>>Lector</option>
-                                    <option value="editor" <?= $u['role'] === 'editor' ? 'selected' : '' ?>>Editor</option>
-                                    <option value="admin" <?= $u['role'] === 'admin' ? 'selected' : '' ?>>Administrador</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3">
-                                <select name="new_area" class="form-select form-select-sm">
-                                    <option value="Radios" <?= $u['area'] === 'Radios' ? 'selected' : '' ?>>Radios</option>
-                                    <option value="Redes" <?= $u['area'] === 'Redes' ? 'selected' : '' ?>>Redes</option>
-                                    <option value="SCA" <?= $u['area'] === 'SCA' ? 'selected' : '' ?>>SCA</option>
-                                    <option value="Libreria" <?= $u['area'] === 'Libreria' ? 'selected' : '' ?>>Librería</option>
-                                </select>
-                            </div>
-                            <div class="col-md-3 d-flex gap-1">
-                                <button type="submit" name="update_user" class="btn btn-sm btn-primary">Actualizar</button>
-                                <?php if ($u['id'] !== $_SESSION['user_id']): ?>
-                                    <button type="submit" name="delete_user" class="btn btn-sm btn-danger" onclick="return confirm('¿Eliminar este usuario?')">Eliminar</button>
-                                <?php endif; ?>
-                            </div>
-                        </form>
+                        <select name="new_role" class="form-select form-select-sm cell-input">
+                            <option value="viewer" <?= $u['role']==='viewer'?'selected':'' ?>>Lector</option>
+                            <option value="editor" <?= $u['role']==='editor'?'selected':'' ?>>Editor</option>
+                            <option value="admin"  <?= $u['role']==='admin' ?'selected':'' ?>>Administrador</option>
+                        </select>
                     </td>
+
+                    <!-- Área -->
+                    <td>
+                        <select name="new_area" class="form-select form-select-sm cell-input">
+                            <?php foreach ($areasValidas as $a): ?>
+                                <option value="<?= $a ?>" <?= $u['area']===$a?'selected':'' ?>><?= $a==='SCA'?'SCA (Control de Acceso)':$a ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </td>
+
+                    <!-- Bodegas -->
+                    <td>
+                        <div class="bodega-grid">
+                            <?php foreach ($todasBodegas as $b): ?>
+                                <label class="bodega-item">
+                                    <input type="checkbox" name="bodegas[]" value="<?= (int)$b['id'] ?>" <?= in_array((int)$b['id'],$asignadas,true)?'checked':'' ?>>
+                                    <span><?= htmlspecialchars($b['nombre']) ?></span>
+                                </label>
+                            <?php endforeach; ?>
+                        </div>
+                    </td>
+
+                    <!-- División -->
+                    <td>
+                        <select name="new_division" class="form-select form-select-sm cell-input">
+                            <?php foreach ($divMapFull as $code=>$label): ?>
+                                <option value="<?= $code ?>" <?= $u['division']===$code?'selected':'' ?>><?= $label ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </td>
+
+                    <!-- Acciones -->
+                    <td class="text-nowrap">
+                        <button type="submit" name="save_row" class="btn btn-primary btn-compact me-1">Actualizar</button>
+                        <?php if ($uid !== (int)$_SESSION['user_id']): ?>
+                            <button type="submit" name="delete_user" class="btn btn-danger btn-compact"
+                                    onclick="return confirm('¿Seguro que deseas eliminar este usuario?')">Eliminar</button>
+                        <?php endif; ?>
+                    </td>
+                </form>
                 </tr>
             <?php endforeach; ?>
-        </tbody>
-    </table>
-    
+            </tbody>
+        </table>
+    </div>
 
-    <a href="dashboard.php" class="btn btn-secondary">Volver al Dashboard</a>
+    <div class="py-2"></div>
+    <a href="dashboard.php" class="btn btn-secondary btn-sm">Volver</a>
 </div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
