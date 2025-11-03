@@ -7,6 +7,14 @@ Incluye control de usuarios por roles y ahora, soporte completo para **divisione
 
 ## 🚀 Características principales
 
+### 🔐 Login de usuarios
+
+# Vista del Panel Principal
+![Login](src/img/login.png)
+
+# Vista del Panel Principal
+![Dashboard](src/img/productos.png)
+
 ### 🔐 Gestión de usuarios
 - Registro e inicio de sesión con roles:
   - `admin` → controla usuarios, divisiones, bodegas, logs.
@@ -15,11 +23,19 @@ Incluye control de usuarios por roles y ahora, soporte completo para **divisione
 - Control de acceso por **área** (`Radios`, `Redes`, `SCA`, `Librería`).
 - Asignación de usuarios a bodegas específicas (tabla `user_bodegas`).
 
+# Vista del Panel Gestion de Usuario
+![Usuarios](src/img/usuarios.png)
+
+
 ### 📦 Gestión de productos
 - CRUD completo de productos.
 - Asignación por **bodega** y **área**.
 - Soporte para importación desde Excel (`importar_excel.php`).
 - Búsqueda, filtros y códigos de barra (`scan_barcode.php`).
+
+# Vista del Panel Agregar Producto
+![Productos](src/img/agregar_producto.png)
+
 
 ### 🏗️ Nueva estructura jerárquica
 Desde la última versión se agregó un modelo jerárquico entre **Divisiones → Bodegas → Productos**:
@@ -40,6 +56,9 @@ Cada división puede tener una o varias bodegas:
 - Cada producto y usuario se puede asociar a una bodega específica.
 
 Estas se administran desde el nuevo módulo **`admin_bodegas.php`**, enlazado al dashboard del administrador.
+
+# Vista del Panel Administrar Bodegas
+![Bodegas](src/img/bodegas.png)
 
 ---
 
