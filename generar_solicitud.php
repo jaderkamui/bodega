@@ -7,7 +7,7 @@ if (!isset($_SESSION['user'])) {
 require 'config/db.php';
 
 $userId       = $_SESSION['user_id'];
-$rol          = $_SESSION['role'] ?? 'viewer';
+$rol          = $_SESSION['role'] ?? 'lector';
 $esAdmin      = ($rol === 'admin');
 $areaUsuario  = $_SESSION['area'] ?? null;
 $bodegasIds   = $_SESSION['bodegas_ids'] ?? []; // array de IDs de bodegas permitidas

@@ -8,95 +8,183 @@ require 'config/db.php';
 
 $mensaje = '';
 
-$rolesMap      = ['admin'=>'Administrador','editor'=>'Editor','viewer'=>'Lector'];
-$rolesValidos  = ['viewer','editor','admin'];
-$areasValidas  = ['Radios','Redes','SCA','Libreria'];
-$divMapFull    = ['CHQ'=>'Chuquicamata','RT'=>'Radomiro Tomic','DMH'=>'Ministro Hales','GM'=>'Gabriela Mistral','DCHS'=>'Chuquicamata Subterranea'];
-$divIdByCode   = ['CHQ'=>1,'RT'=>2,'DMH'=>3,'GM'=>4,'DCHS'=>5];
-function fullDivName($code,$map){ return $map[$code] ?? $code; }
+// ----------------------------------------------------
+// 1. Cargar divisiones desde la BD
+// ----------------------------------------------------
+$divStmt = $conn->query("SELECT id, nombre FROM divisiones ORDER BY id");
+$divisiones = $divStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Todas las bodegas (lista plana)
-$bStmt = $conn->query("SELECT id, nombre, division FROM bodegas ORDER BY nombre");
+// mapas auxiliares
+$divById = [];
+foreach ($divisiones as $d) {
+    $divById[(int)$d['id']] = $d['nombre'];
+}
+
+// ----------------------------------------------------
+// 2. Config estática
+// ----------------------------------------------------
+$rolesMap     = ['admin'=>'Administrador','editor'=>'Editor','lector'=>'Lector'];
+$rolesValidos = ['lector','editor','admin'];
+$areasValidas = ['Radios','Redes','SCA','Libreria'];
+
+// ----------------------------------------------------
+// 3. Todas las bodegas para los checkboxes
+// ----------------------------------------------------
+$bStmt = $conn->query("SELECT id, nombre, division_id FROM bodegas ORDER BY nombre");
 $todasBodegas = $bStmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Asignaciones user->bodegas
+// ----------------------------------------------------
+// 4. Asignaciones user -> bodegas
+// ----------------------------------------------------
 $ab = $conn->query("SELECT user_id, bodega_id FROM user_bodegas");
 $userBodegas = [];
 foreach ($ab as $row) {
     $userBodegas[(int)$row['user_id']][] = (int)$row['bodega_id'];
 }
 
-// POST
+// ----------------------------------------------------
+// 5. POST (guardar / eliminar)
+// ----------------------------------------------------
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
-    // Guardar fila
+    // guardar fila
     if (isset($_POST['save_row'])) {
         $uid  = (int)($_POST['user_id'] ?? 0);
+
         if ($uid > 0) {
-            $cur = $conn->prepare("SELECT username, email, role, area, division FROM users WHERE id=?");
+            // traigo datos actuales
+            $cur = $conn->prepare("SELECT username, email, role, area, division_id FROM users WHERE id=?");
             $cur->execute([$uid]);
             $before = $cur->fetch(PDO::FETCH_ASSOC);
+
             if ($before) {
-                $newUsername = trim($_POST['new_username'] ?? '');
-                $newRole     = $_POST['new_role'] ?? $before['role'];
-                $newArea     = $_POST['new_area'] ?? $before['area'];
-                $newDiv      = $_POST['new_division'] ?? $before['division'];
+                $newUsername  = trim($_POST['new_username'] ?? '');
+                $newRole      = $_POST['new_role'] ?? $before['role'];
+                $newArea      = $_POST['new_area'] ?? $before['area'];
+                $newDivId     = (int)($_POST['new_division_id'] ?? $before['division_id']);
 
-                if ($newUsername === '') $newUsername = $before['username'];
-                if (!in_array($newRole, $rolesValidos, true)) $newRole = $before['role'];
-                if (!in_array($newArea, $areasValidas, true))  $newArea = $before['area'];
-                if (!isset($divIdByCode[$newDiv]))             $newDiv  = $before['division'];
+                if ($newUsername === '') {
+                    $newUsername = $before['username'];
+                }
+                if (!in_array($newRole, $rolesValidos, true)) {
+                    $newRole = $before['role'];
+                }
+                if (!in_array($newArea, $areasValidas, true)) {
+                    $newArea = $before['area'];
+                }
+                if (!isset($divById[$newDivId])) {
+                    $newDivId = (int)$before['division_id'];
+                }
 
+                // detectar cambios
                 $changes = [];
-                if ($before['username'] !== $newUsername) $changes[] = ['campo'=>'Nombre','old'=>$before['username'],'new'=>$newUsername];
-                if ($before['role']     !== $newRole)     $changes[] = ['campo'=>'Rol','old'=>($rolesMap[$before['role']]??$before['role']),'new'=>($rolesMap[$newRole]??$newRole)];
-                if ($before['area']     !== $newArea)     $changes[] = ['campo'=>'Área','old'=>$before['area'],'new'=>$newArea];
-                if ($before['division'] !== $newDiv)      $changes[] = ['campo'=>'División','old'=>fullDivName($before['division'],$divMapFull),'new'=>fullDivName($newDiv,$divMapFull)];
+                if ($before['username'] !== $newUsername) {
+                    $changes[] = ['campo'=>'Nombre','old'=>$before['username'],'new'=>$newUsername];
+                }
+                if ($before['role'] !== $newRole) {
+                    $changes[] = ['campo'=>'Rol','old'=>($rolesMap[$before['role']] ?? $before['role']),'new'=>($rolesMap[$newRole] ?? $newRole)];
+                }
+                if ($before['area'] !== $newArea) {
+                    $changes[] = ['campo'=>'Área','old'=>$before['area'],'new'=>$newArea];
+                }
+                if ((int)$before['division_id'] !== $newDivId) {
+                    $changes[] = [
+                        'campo'=>'División',
+                        'old'=>$divById[(int)$before['division_id']] ?? '(sin división)',
+                        'new'=>$divById[$newDivId] ?? '(sin división)'
+                    ];
+                }
 
-                $upd = $conn->prepare("UPDATE users SET username=?, role=?, area=?, division=?, division_id=? WHERE id=?");
-                $upd->execute([$newUsername,$newRole,$newArea,$newDiv,$divIdByCode[$newDiv],$uid]);
+                // actualizar usuario (YA NO hay columna "division")
+                $upd = $conn->prepare("UPDATE users SET username=?, role=?, area=?, division_id=? WHERE id=?");
+                $upd->execute([$newUsername, $newRole, $newArea, $newDivId, $uid]);
 
-                $seleccionadas = isset($_POST['bodegas']) && is_array($_POST['bodegas']) ? array_map('intval', $_POST['bodegas']) : [];
+                // bodegas
+                $seleccionadas = isset($_POST['bodegas']) && is_array($_POST['bodegas'])
+                    ? array_map('intval', $_POST['bodegas'])
+                    : [];
                 $antesBod = $userBodegas[$uid] ?? [];
+
+                // reemplazar asignaciones
                 $conn->prepare("DELETE FROM user_bodegas WHERE user_id=?")->execute([$uid]);
                 if (!empty($seleccionadas)) {
                     $ins = $conn->prepare("INSERT INTO user_bodegas (user_id, bodega_id) VALUES (?, ?)");
-                    foreach ($seleccionadas as $bid) $ins->execute([$uid,$bid]);
+                    foreach ($seleccionadas as $bid) {
+                        $ins->execute([$uid, $bid]);
+                    }
                 }
-                sort($antesBod); $despuesBod = $seleccionadas; sort($despuesBod);
+
+                sort($antesBod);
+                $despuesBod = $seleccionadas;
+                sort($despuesBod);
+
                 if ($antesBod !== $despuesBod) {
+                    // nombres viejos
                     $oldNames = [];
                     if (!empty($antesBod)) {
-                        $q = $conn->prepare("SELECT nombre FROM bodegas WHERE id IN (".implode(',',array_fill(0,count($antesBod),'?')).")");
-                        $q->execute($antesBod); $oldNames = $q->fetchAll(PDO::FETCH_COLUMN);
+                        $q = $conn->prepare(
+                            "SELECT nombre FROM bodegas WHERE id IN (" .
+                            implode(',', array_fill(0, count($antesBod), '?')) . ")"
+                        );
+                        $q->execute($antesBod);
+                        $oldNames = $q->fetchAll(PDO::FETCH_COLUMN);
                     }
+                    // nombres nuevos
                     $newNames = [];
                     if (!empty($despuesBod)) {
-                        $q = $conn->prepare("SELECT nombre FROM bodegas WHERE id IN (".implode(',',array_fill(0,count($despuesBod),'?')).")");
-                        $q->execute($despuesBod); $newNames = $q->fetchAll(PDO::FETCH_COLUMN);
+                        $q = $conn->prepare(
+                            "SELECT nombre FROM bodegas WHERE id IN (" .
+                            implode(',', array_fill(0, count($despuesBod), '?')) . ")"
+                        );
+                        $q->execute($despuesBod);
+                        $newNames = $q->fetchAll(PDO::FETCH_COLUMN);
                     }
-                    $changes[] = ['campo'=>'Bodegas','old'=>implode(', ',$oldNames),'new'=>implode(', ',$newNames)];
+
+                    $changes[] = [
+                        'campo' => 'Bodegas',
+                        'old'   => implode(', ', $oldNames),
+                        'new'   => implode(', ', $newNames)
+                    ];
+
                     $userBodegas[$uid] = $despuesBod;
                 }
 
+                // logs
                 if (!empty($changes)) {
                     foreach ($changes as $c) {
                         $conn->prepare("INSERT INTO logs (user_id, action, details, old_value, new_value, created_at)
                                         VALUES (?, 'user_row_updated', ?, ?, ?, NOW())")
-                         ->execute([$_SESSION['user_id'],"Actualizó {$c['campo']} del usuario ID {$uid}",$c['old']??'',$c['new']??'']);
+                             ->execute([
+                                 $_SESSION['user_id'],
+                                 "Actualizó {$c['campo']} del usuario ID {$uid}",
+                                 $c['old'] ?? '',
+                                 $c['new'] ?? ''
+                             ]);
                     }
                 }
 
+                // si el admin editó su propio usuario, refrescamos sesión
                 if ($uid === (int)$_SESSION['user_id']) {
                     $_SESSION['user'] = $newUsername;
                     $_SESSION['role'] = $newRole;
                     $_SESSION['area'] = $newArea;
-                    $_SESSION['division'] = $newDiv;
-                    $_SESSION['division_name'] = fullDivName($newDiv,$divMapFull);
-                    $me = $conn->prepare("SELECT ub.bodega_id, b.nombre FROM user_bodegas ub JOIN bodegas b ON b.id=ub.bodega_id WHERE ub.user_id=?");
-                    $me->execute([$uid]); $ids=[]; $map=[];
-                    foreach ($me as $r){ $ids[]=(int)$r['bodega_id']; $map[(int)$r['bodega_id']]=$r['nombre']; }
-                    $_SESSION['bodegas_ids']=$ids; $_SESSION['bodegas_map']=$map;
+                    $_SESSION['division_id'] = $newDivId;
+                    $_SESSION['division_name'] = $divById[$newDivId] ?? null;
+
+                    // actualizar bodegas en sesión
+                    $me = $conn->prepare("SELECT ub.bodega_id, b.nombre
+                                          FROM user_bodegas ub
+                                          JOIN bodegas b ON b.id = ub.bodega_id
+                                          WHERE ub.user_id = ?");
+                    $me->execute([$uid]);
+                    $ids = [];
+                    $map = [];
+                    foreach ($me as $r) {
+                        $ids[] = (int)$r['bodega_id'];
+                        $map[(int)$r['bodega_id']] = $r['nombre'];
+                    }
+                    $_SESSION['bodegas_ids'] = $ids;
+                    $_SESSION['bodegas_map'] = $map;
                 }
 
                 $mensaje = "Cambios guardados.";
@@ -104,36 +192,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    // Eliminar
+    // eliminar usuario
     if (isset($_POST['delete_user'])) {
         $uid = (int)($_POST['user_id'] ?? 0);
         if ($uid > 0) {
             if ($uid === (int)$_SESSION['user_id']) {
                 $mensaje = "No puedes eliminar tu propio usuario.";
             } else {
-                $info = $conn->prepare("SELECT username, role, area, division FROM users WHERE id=?");
-                $info->execute([$uid]); $u = $info->fetch(PDO::FETCH_ASSOC);
+                $info = $conn->prepare("SELECT username, role, area, division_id FROM users WHERE id=?");
+                $info->execute([$uid]);
+                $u = $info->fetch(PDO::FETCH_ASSOC);
+
                 $conn->prepare("DELETE FROM user_bodegas WHERE user_id=?")->execute([$uid]);
                 $conn->prepare("DELETE FROM users WHERE id=?")->execute([$uid]);
+
+                $detDiv = $u && isset($divById[(int)$u['division_id']]) ? $divById[(int)$u['division_id']] : '(sin división)';
                 $conn->prepare("INSERT INTO logs (user_id, action, details, old_value, new_value, created_at)
                                 VALUES (?, 'user_deleted', ?, ?, NULL, NOW())")
-                     ->execute([$_SESSION['user_id'],
-                                "Eliminó usuario ID {$uid}",
-                                $u ? "Nombre: {$u['username']} | Rol: ".($rolesMap[$u['role']]??$u['role'])." | Área: {$u['area']} | División: ".fullDivName($u['division'],$divMapFull) : '(desconocido)']);
+                     ->execute([
+                         $_SESSION['user_id'],
+                         "Eliminó usuario ID {$uid}",
+                         $u
+                            ? "Nombre: {$u['username']} | Rol: ".($rolesMap[$u['role']] ?? $u['role'])." | Área: {$u['area']} | División: {$detDiv}"
+                            : '(desconocido)'
+                     ]);
+
                 $mensaje = "Usuario eliminado.";
             }
         }
     }
 }
 
-// Usuarios
-$stmt = $conn->query("SELECT id, username, email, role, area, division FROM users ORDER BY id ASC");
+// ----------------------------------------------------
+// 6. Traer usuarios (YA SIN columna division)
+// ----------------------------------------------------
+$stmt = $conn->query("SELECT id, username, email, role, area, division_id FROM users ORDER BY id ASC");
 $usuarios = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-// Notificaciones navbar
+// notificaciones para el navbar
 $userIdSess = (int)$_SESSION['user_id'];
 $notiStmt = $conn->prepare("SELECT * FROM notificaciones WHERE user_id = ? AND leido = 0 ORDER BY created_at DESC LIMIT 5");
-$notiStmt->execute([$userIdSess]); $notificaciones = $notiStmt->fetchAll(PDO::FETCH_ASSOC);
+$notiStmt->execute([$userIdSess]);
+$notificaciones = $notiStmt->fetchAll(PDO::FETCH_ASSOC);
 $notiCount = count($notificaciones);
 
 $areaUsuario  = $_SESSION['area'] ?? '';
@@ -149,41 +249,34 @@ $divisionName = $_SESSION['division_name'] ?? null;
     body{font-size:14px;}
     .table-sm> :not(caption)>*>*{padding:.35rem .5rem;}
     .small-table{table-layout:fixed;}
-    th.col-nombre{width:180px;}
+    th.col-nombre{width:170px;}
     th.col-email{width:140px;}
     th.col-rol{width:140px;}
     th.col-area{width:200px;}
-    th.col-bodegas{width:220px;}
-    th.col-division{width:180px;}
+    th.col-bodegas{width:210px;}
+    th.col-division{width:220px;}
     th.col-acciones{width:160px;}
     .cell-input{height:31px;padding:.25rem .5rem;font-size:14px;}
     .email-wrap{max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-    .bodega-grid {
-  display: flex;
-  flex-direction: column;
-  gap: .25rem;
-  max-height: 220px;       /* limita la altura si hay muchas bodegas */
-  overflow-y: auto;        /* agrega scroll vertical si son demasiadas */
-  padding-right: 4px;
-}
-    .bodega-item {
-  background: #fff;
-  border: 1px solid #e5e7eb;
-  border-radius: .4rem;
-  padding: .25rem .45rem;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-}
-    .bodega-item input {
-  margin-right: .35rem;
-  transform: scale(.9);
-}
-    .btn-compact{padding:.3rem .55rem;font-size:.85rem;}
-    @media (max-width: 1200px){
-        th.col-bodegas{width:320px;}
-        .bodega-grid{grid-template-columns:repeat(2,minmax(140px,1fr));}
+    .bodega-grid{
+        display:flex;
+        flex-direction:column;
+        gap:.25rem;
+        max-height:220px;
+        overflow-y:auto;
+        padding-right:4px;
     }
+    .bodega-item{
+        background:#fff;
+        border:1px solid #e5e7eb;
+        border-radius:.4rem;
+        padding:.25rem .45rem;
+        font-size:13px;
+        display:flex;
+        align-items:center;
+    }
+    .bodega-item input{margin-right:.35rem;transform:scale(.9);}
+    .btn-compact{padding:.3rem .55rem;font-size:.85rem;}
 </style>
 </head>
 <body class="bg-light">
@@ -257,13 +350,13 @@ $divisionName = $_SESSION['division_name'] ?? null;
                     <!-- Nombre -->
                     <td><input type="text" name="new_username" class="form-control form-control-sm cell-input" value="<?= htmlspecialchars($u['username']) ?>" required></td>
 
-                    <!-- Email (solo lectura, compacto con elipsis) -->
+                    <!-- Email -->
                     <td><div class="email-wrap" title="<?= htmlspecialchars($u['email']) ?>"><?= htmlspecialchars($u['email']) ?></div></td>
 
                     <!-- Rol -->
                     <td>
                         <select name="new_role" class="form-select form-select-sm cell-input">
-                            <option value="viewer" <?= $u['role']==='viewer'?'selected':'' ?>>Lector</option>
+                            <option value="lector" <?= $u['role']==='lector'?'selected':'' ?>>Lector</option>
                             <option value="editor" <?= $u['role']==='editor'?'selected':'' ?>>Editor</option>
                             <option value="admin"  <?= $u['role']==='admin' ?'selected':'' ?>>Administrador</option>
                         </select>
@@ -292,9 +385,11 @@ $divisionName = $_SESSION['division_name'] ?? null;
 
                     <!-- División -->
                     <td>
-                        <select name="new_division" class="form-select form-select-sm cell-input">
-                            <?php foreach ($divMapFull as $code=>$label): ?>
-                                <option value="<?= $code ?>" <?= $u['division']===$code?'selected':'' ?>><?= $label ?></option>
+                        <select name="new_division_id" class="form-select form-select-sm cell-input">
+                            <?php foreach ($divisiones as $d): ?>
+                                <option value="<?= (int)$d['id'] ?>" <?= ((int)$u['division_id'] === (int)$d['id']) ? 'selected' : '' ?>>
+                                    <?= htmlspecialchars($d['nombre']) ?>
+                                </option>
                             <?php endforeach; ?>
                         </select>
                     </td>

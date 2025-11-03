@@ -8,7 +8,7 @@ if (!isset($_SESSION['user'])) {
 require 'config/db.php';
 
 // ===== Sesión base =====
-$rol           = $_SESSION['role'] ?? 'viewer';
+$rol           = $_SESSION['role'] ?? 'lector';
 $puedeEditar   = in_array($rol, ['admin', 'editor']);
 $esAdmin       = ($rol === 'admin');
 $areaUsuario   = $_SESSION['area'] ?? null;

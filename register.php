@@ -57,7 +57,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         // role = viewer, division_id obligatorio
                         $insUser = $conn->prepare("
                             INSERT INTO users (username, email, password, role, area, division_id)
-                            VALUES (?, ?, ?, 'viewer', ?, ?)
+                            VALUES (?, ?, ?, 'lector', ?, ?)
                         ");
                         $insUser->execute([$username, $email, $hashedPassword, $area, $division_id]);
 
@@ -72,7 +72,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             INSERT INTO logs (user_id, action, details, created_at)
                             VALUES (?, 'user_registered', ?, NOW())
                         ");
-                        $det = "Nuevo usuario registrado: {$username} ({$email}) - área: {$area}, rol: viewer, división: {$division['nombre']}, bodega asignada: {$bodegaPrincipal['nombre']}";
+                        $det = "Nuevo usuario registrado: {$username} ({$email}) - área: {$area}, rol: lector, división: {$division['nombre']}, bodega asignada: {$bodegaPrincipal['nombre']}";
                         $log->execute([$newUserId, $det]);
 
                         $conn->commit();

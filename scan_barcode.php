@@ -3,7 +3,7 @@ session_start();
 if (!isset($_SESSION['user'])) { header("Location: index.php"); exit; }
 require 'config/db.php';
 
-$rol = $_SESSION['role'] ?? 'viewer';
+$rol = $_SESSION['role'] ?? 'lector';
 $puedeEditar = in_array($rol, ['admin','editor']);
 $areaUsuario = $_SESSION['area'] ?? null;
 $divisionName = $_SESSION['division_name'] ?? null; // área guardada en sesión
@@ -183,7 +183,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             <?php if ($puedeEditar): ?>
                 <button name="action" value="increment" class="btn btn-success">➕ Sumar 1</button>
             <?php endif; ?>
-            <?php if ($rol === 'viewer' || $rol === 'editor'): ?>
+            <?php if ($rol === 'lector' || $rol === 'editor'): ?>
                 <button name="action" value="request" class="btn btn-warning">📩 Solicitar Retiro</button>
             <?php endif; ?>
         </div>

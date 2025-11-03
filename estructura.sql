@@ -26,7 +26,7 @@ CREATE TABLE `bodegas` (
   `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
   `nombre` varchar(120) NOT NULL,
   `abreviatura` varchar(16) DEFAULT NULL,
-  `division` enum('CHQ','RT','DMH','GM','DCHS') NOT NULL DEFAULT 'CHQ',
+  `division` varchar(120) NOT NULL DEFAULT '',
   `is_principal` tinyint(1) NOT NULL DEFAULT 0,
   `activa` tinyint(1) NOT NULL DEFAULT 1,
   `division_id` tinyint(3) unsigned NOT NULL,
@@ -37,8 +37,39 @@ CREATE TABLE `bodegas` (
   UNIQUE KEY `uk_bodegas_div_nombre` (`division`,`nombre`),
   KEY `idx_bodegas_division` (`division_id`),
   CONSTRAINT `fk_bodegas_division` FOREIGN KEY (`division_id`) REFERENCES `divisiones` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
+
+
+-- 1) (opcional) limpiar la tabla si está vacía o si la dejaste sin nada
+-- SOLO si estás seguro:
+-- TRUNCATE TABLE bodegas;
+
+-- 2) insertar una bodega principal por cada división
+INSERT INTO bodegas (
+    nombre,
+    abreviatura,
+    division,
+    division_id,
+    is_principal,
+    activa,
+    created_at,
+    updated_at
+) VALUES
+-- Ministro Hales (id = 1)
+('Bodega Principal DMH', 'DMH1', 'Ministro Hales', 1, 1, 1, NOW(), NOW()),
+
+-- Radomiro Tomic (id = 2)
+('Bodega Principal RT', 'RT1', 'Radomiro Tomic', 2, 1, 1, NOW(), NOW()),
+
+-- Chuquicamata (id = 3)
+('Bodega Principal CHQ', 'CHQ1', 'Chuquicamata', 3, 1, 1, NOW(), NOW()),
+
+-- Gabriela Mistral (id = 4)
+('Bodega Principal GM', 'GM1', 'Gabriela Mistral', 4, 1, 1, NOW(), NOW()),
+
+-- División Chuqui Subterránea (id = 5)
+('Bodega Principal DCHS', 'DCHS1', 'División Chuqui Subterránea', 5, 1, 1, NOW(), NOW());
 
 --
 -- Table structure for table `divisiones`
@@ -59,6 +90,21 @@ CREATE TABLE `divisiones` (
 -- Table structure for table `logs`
 --
 
+-- Limpiamos primero (opcional, solo si estás en desarrollo)
+TRUNCATE TABLE divisiones;
+
+-- Insertamos las divisiones en el mismo orden que muestras
+INSERT INTO divisiones (id, nombre) VALUES
+  (1, 'Ministro Hales'),
+  (2, 'Radomiro Tomic'),
+  (3, 'Chuquicamata'),
+  (4, 'Gabriela Mistral'),
+  (5, 'División Chuqui Subterránea');
+
+-- Si tu columna id es AUTO_INCREMENT, lo dejamos en 6 por si se crean más
+ALTER TABLE divisiones AUTO_INCREMENT = 6;
+
+
 DROP TABLE IF EXISTS `logs`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -73,7 +119,7 @@ CREATE TABLE `logs` (
   PRIMARY KEY (`id`),
   KEY `idx_logs_user` (`user_id`),
   CONSTRAINT `fk_logs_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=28 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -117,7 +163,7 @@ CREATE TABLE `products` (
   PRIMARY KEY (`id`),
   KEY `idx_products_bodega` (`bodega_id`),
   CONSTRAINT `fk_products_bodega` FOREIGN KEY (`bodega_id`) REFERENCES `bodegas` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -169,25 +215,26 @@ CREATE TABLE `user_bodegas` (
 --
 -- Table structure for table `users`
 --
-
 DROP TABLE IF EXISTS `users`;
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `users` (
-  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
-  `username` varchar(100) NOT NULL,
-  `email` varchar(150) NOT NULL,
-  `password` varchar(255) NOT NULL,
-  `role` enum('admin','editor','viewer') NOT NULL DEFAULT 'viewer',
-  `area` enum('Radios','Redes','SCA','Libreria') DEFAULT NULL,
-  `division` enum('CHQ','RT','DMH','GM','DCHS') NOT NULL DEFAULT 'CHQ',
-  `division_id` tinyint(3) unsigned NOT NULL,
-  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `id` INT(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+  `username` VARCHAR(100) NOT NULL,
+  `email` VARCHAR(150) NOT NULL,
+  `password` VARCHAR(255) NOT NULL,
+  `role` ENUM('admin', 'editor', 'lector') NOT NULL DEFAULT 'lector',
+  `area` ENUM('Radios', 'Redes', 'SCA', 'Libreria') DEFAULT NULL,
+  `division_id` TINYINT(3) UNSIGNED NOT NULL,
+  `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP(),
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`),
   KEY `idx_users_division` (`division_id`),
-  CONSTRAINT `fk_users_division` FOREIGN KEY (`division_id`) REFERENCES `divisiones` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+  CONSTRAINT `fk_users_division` FOREIGN KEY (`division_id`) REFERENCES `divisiones` (`id`) 
+    ON UPDATE CASCADE 
+    ON DELETE RESTRICT
+) ENGINE=InnoDB 
+  DEFAULT CHARSET=utf8mb4 
+  COLLATE=utf8mb4_general_ci;
+
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -199,4 +246,4 @@ CREATE TABLE `users` (
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-11-03 11:37:34
+-- Dump completed on 2025-11-03 12:52:31
