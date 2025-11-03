@@ -1,169 +1,202 @@
-/* ===== 0) BASE ===== */
-CREATE DATABASE IF NOT EXISTS bodega_sonda
-  CHARACTER SET utf8mb4
-  COLLATE utf8mb4_general_ci;
-USE bodega_sonda;
+-- MariaDB dump 10.19  Distrib 10.4.32-MariaDB, for Win64 (AMD64)
+--
+-- Host: localhost    Database: bodega_sonda
+-- ------------------------------------------------------
+-- Server version	10.4.32-MariaDB
 
-/* ===== 1) DIVISIONES (catálogo) ===== */
-DROP TABLE IF EXISTS divisiones;
-CREATE TABLE divisiones (
-  id TINYINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  codigo ENUM('CHQ','RT','DMH','GM') NOT NULL UNIQUE,
-  nombre VARCHAR(100) NOT NULL,
-  PRIMARY KEY (id)
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+
+--
+-- Table structure for table `bodegas`
+--
+
+DROP TABLE IF EXISTS `bodegas`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `bodegas` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `nombre` varchar(120) NOT NULL,
+  `abreviatura` varchar(16) DEFAULT NULL,
+  `division` enum('CHQ','RT','DMH','GM','DCHS') NOT NULL DEFAULT 'CHQ',
+  `is_principal` tinyint(1) NOT NULL DEFAULT 0,
+  `activa` tinyint(1) NOT NULL DEFAULT 1,
+  `division_id` tinyint(3) unsigned NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `uq_bodega_nombre_div` (`nombre`,`division_id`),
+  UNIQUE KEY `uk_bodegas_div_nombre` (`division`,`nombre`),
+  KEY `idx_bodegas_division` (`division_id`),
+  CONSTRAINT `fk_bodegas_division` FOREIGN KEY (`division_id`) REFERENCES `divisiones` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `divisiones`
+--
+
+DROP TABLE IF EXISTS `divisiones`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `divisiones` (
+  `id` tinyint(3) unsigned NOT NULL,
+  `nombre` varchar(80) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `nombre` (`nombre`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
-INSERT INTO divisiones (codigo, nombre) VALUES
-('CHQ','Chuquicamata'),
-('RT','Radomiro Tomic'),
-('DMH','Ministro Hales'),
-('GM','Gabriela Mistral');
+--
+-- Table structure for table `logs`
+--
 
-/* ===== 2) USERS ===== */
-DROP TABLE IF EXISTS users;
-CREATE TABLE users (
-  id INT(11) NOT NULL AUTO_INCREMENT,
-  username VARCHAR(100) NOT NULL,
-  email VARCHAR(150) NOT NULL,
-  password VARCHAR(255) NOT NULL,
-  role ENUM('admin','editor','viewer') DEFAULT 'viewer',
-  area ENUM('Radios','Redes','SCA','Libreria') DEFAULT NULL,
-  /* Estos 2 campos permiten compatibilidad con el código actual */
-  division ENUM('CHQ','RT','DMH','GM') DEFAULT 'CHQ',
-  division_id TINYINT UNSIGNED DEFAULT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_users_username (username),
-  UNIQUE KEY uq_users_email (email),
-  KEY idx_users_division_id (division_id),
-  CONSTRAINT fk_users_division
-    FOREIGN KEY (division_id) REFERENCES divisiones(id)
-    ON UPDATE CASCADE ON DELETE SET NULL
+DROP TABLE IF EXISTS `logs`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `logs` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) unsigned DEFAULT NULL,
+  `action` varchar(60) NOT NULL,
+  `details` text DEFAULT NULL,
+  `old_value` text DEFAULT NULL,
+  `new_value` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_logs_user` (`user_id`),
+  CONSTRAINT `fk_logs_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `notificaciones`
+--
+
+DROP TABLE IF EXISTS `notificaciones`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `notificaciones` (
+  `id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) unsigned NOT NULL,
+  `mensaje` varchar(255) NOT NULL,
+  `link` varchar(255) DEFAULT NULL,
+  `leido` tinyint(1) NOT NULL DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_notif_user` (`user_id`),
+  KEY `idx_notif_leido` (`leido`),
+  CONSTRAINT `fk_notif_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=4 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `products`
+--
+
+DROP TABLE IF EXISTS `products`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `products` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `description` varchar(255) NOT NULL,
+  `barcode` varchar(100) DEFAULT NULL,
+  `quantity` int(11) NOT NULL DEFAULT 0,
+  `ubicacion` varchar(120) DEFAULT NULL,
+  `area` enum('Radios','Redes','SCA','Libreria') DEFAULT NULL,
+  `bodega_id` int(10) unsigned DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_products_bodega` (`bodega_id`),
+  CONSTRAINT `fk_products_bodega` FOREIGN KEY (`bodega_id`) REFERENCES `bodegas` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=9 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `solicitudes`
+--
+
+DROP TABLE IF EXISTS `solicitudes`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `solicitudes` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `user_id` int(10) unsigned NOT NULL,
+  `product_id` int(10) unsigned NOT NULL,
+  `cantidad` int(11) NOT NULL DEFAULT 1,
+  `ticket` varchar(60) DEFAULT '0',
+  `detalle` text DEFAULT NULL,
+  `estado` enum('Pendiente','Aprobada','Rechazada','En Bodega','En Curso','Entregado') NOT NULL DEFAULT 'Pendiente',
+  `bodega_id` int(10) unsigned DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `idx_solicitudes_user` (`user_id`),
+  KEY `idx_solicitudes_product` (`product_id`),
+  KEY `idx_solicitudes_bodega` (`bodega_id`),
+  CONSTRAINT `fk_solicitudes_bodega` FOREIGN KEY (`bodega_id`) REFERENCES `bodegas` (`id`) ON DELETE SET NULL,
+  CONSTRAINT `fk_solicitudes_product` FOREIGN KEY (`product_id`) REFERENCES `products` (`id`),
+  CONSTRAINT `fk_solicitudes_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=2 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Table structure for table `user_bodegas`
+--
+
+DROP TABLE IF EXISTS `user_bodegas`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `user_bodegas` (
+  `user_id` int(10) unsigned NOT NULL,
+  `bodega_id` int(10) unsigned NOT NULL,
+  `granted_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`user_id`,`bodega_id`),
+  KEY `idx_ub_bodega` (`bodega_id`),
+  CONSTRAINT `fk_ub_bodega` FOREIGN KEY (`bodega_id`) REFERENCES `bodegas` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `fk_ub_user` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
 
-/* (Opcional) crear admin por defecto: REEMPLAZA_EL_HASH por un bcrypt real
-INSERT INTO users (username,email,password,role,area,division,division_id)
-VALUES ('admin','admin@local',
-'REEMPLAZA_EL_HASH','admin','Redes','CHQ',1);
-*/
+--
+-- Table structure for table `users`
+--
 
-/* ===== 3) BODEGAS ===== */
-DROP TABLE IF EXISTS bodegas;
-CREATE TABLE bodegas (
-  id INT(11) NOT NULL AUTO_INCREMENT,
-  nombre VARCHAR(120) NOT NULL,
-  abreviatura VARCHAR(20) DEFAULT NULL,
-  /* Compatibilidad con código actual */
-  division ENUM('CHQ','RT','DMH','GM') NOT NULL,
-  division_id TINYINT UNSIGNED NOT NULL,
-  is_principal TINYINT(1) NOT NULL DEFAULT 0,
-  activa TINYINT(1) NOT NULL DEFAULT 1,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_bodega_div_nombre (division_id, nombre),
-  KEY idx_bodegas_division_id (division_id),
-  CONSTRAINT fk_bodegas_division
-    FOREIGN KEY (division_id) REFERENCES divisiones(id)
-    ON UPDATE CASCADE ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+DROP TABLE IF EXISTS `users`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `users` (
+  `id` int(10) unsigned NOT NULL AUTO_INCREMENT,
+  `username` varchar(100) NOT NULL,
+  `email` varchar(150) NOT NULL,
+  `password` varchar(255) NOT NULL,
+  `role` enum('admin','editor','viewer') NOT NULL DEFAULT 'viewer',
+  `area` enum('Radios','Redes','SCA','Libreria') DEFAULT NULL,
+  `division` enum('CHQ','RT','DMH','GM','DCHS') NOT NULL DEFAULT 'CHQ',
+  `division_id` tinyint(3) unsigned NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `email` (`email`),
+  KEY `idx_users_division` (`division_id`),
+  CONSTRAINT `fk_users_division` FOREIGN KEY (`division_id`) REFERENCES `divisiones` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=6 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
-/* Seeds de bodegas principales (una por división) */
-INSERT INTO bodegas (nombre, abreviatura, division, division_id, is_principal, activa)
-VALUES
-('Bodega Principal CHQ','CHQ','CHQ',1,1,1),
-('Bodega Principal RT','RT','RT',2,1,1),
-('Bodega Principal DMH','DMH','DMH',3,1,1),
-('Bodega Principal GM','GM','GM',4,1,1);
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
-/* ===== 4) PRODUCTS (con bodega_id) ===== */
-DROP TABLE IF EXISTS products;
-CREATE TABLE products (
-  id INT(11) NOT NULL AUTO_INCREMENT,
-  description TEXT NOT NULL,
-  quantity INT(11) NOT NULL DEFAULT 0,
-  ubicacion VARCHAR(100) DEFAULT NULL,
-  barcode VARCHAR(100) DEFAULT NULL,
-  area ENUM('Radios','Redes','SCA','Libreria') NOT NULL,
-  bodega_id INT(11) DEFAULT NULL,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  UNIQUE KEY uq_products_barcode (barcode),
-  KEY idx_products_bodega (bodega_id),
-  CONSTRAINT fk_products_bodega
-    FOREIGN KEY (bodega_id) REFERENCES bodegas(id)
-    ON UPDATE CASCADE ON DELETE RESTRICT
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
-/* ===== 5) SOLICITUDES ===== */
-DROP TABLE IF EXISTS solicitudes;
-CREATE TABLE solicitudes (
-  id INT(11) NOT NULL AUTO_INCREMENT,
-  product_id INT(11) NOT NULL,
-  user_id INT(11) NOT NULL,
-  cantidad INT(11) NOT NULL DEFAULT 1,
-  ticket VARCHAR(50) NOT NULL DEFAULT '0',
-  detalle TEXT DEFAULT NULL,
-  estado ENUM('Pendiente','Aprobada','Rechazada','En Bodega','En Curso','Entregado')
-         NOT NULL DEFAULT 'Pendiente',
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  KEY idx_solicitudes_product (product_id),
-  KEY idx_solicitudes_user (user_id),
-  CONSTRAINT fk_solicitudes_product
-    FOREIGN KEY (product_id) REFERENCES products(id)
-    ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT fk_solicitudes_user
-    FOREIGN KEY (user_id) REFERENCES users(id)
-    ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
-/* ===== 6) LOGS ===== */
-DROP TABLE IF EXISTS logs;
-CREATE TABLE logs (
-  id INT(11) NOT NULL AUTO_INCREMENT,
-  user_id INT(11) NOT NULL,
-  action TEXT NOT NULL,
-  details TEXT DEFAULT NULL,
-  old_value TEXT DEFAULT NULL,
-  new_value TEXT DEFAULT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  KEY idx_logs_user (user_id),
-  CONSTRAINT fk_logs_user
-    FOREIGN KEY (user_id) REFERENCES users(id)
-    ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
-/* ===== 7) NOTIFICACIONES ===== */
-DROP TABLE IF EXISTS notificaciones;
-CREATE TABLE notificaciones (
-  id INT(11) NOT NULL AUTO_INCREMENT,
-  user_id INT(11) NOT NULL,
-  mensaje TEXT NOT NULL,
-  link VARCHAR(255) DEFAULT NULL,
-  leido TINYINT(1) DEFAULT 0,
-  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (id),
-  KEY idx_notif_user (user_id),
-  CONSTRAINT fk_notif_user
-    FOREIGN KEY (user_id) REFERENCES users(id)
-    ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
-/* ===== 8) USER_BODEGAS (asignación múltiple) ===== */
-DROP TABLE IF EXISTS user_bodegas;
-CREATE TABLE user_bodegas (
-  user_id INT(11) NOT NULL,
-  bodega_id INT(11) NOT NULL,
-  PRIMARY KEY (user_id, bodega_id),
-  KEY idx_user_bodegas_bodega (bodega_id),
-  CONSTRAINT fk_user_bodegas_user
-    FOREIGN KEY (user_id) REFERENCES users(id)
-    ON DELETE CASCADE ON UPDATE CASCADE,
-  CONSTRAINT fk_user_bodegas_bodega
-    FOREIGN KEY (bodega_id) REFERENCES bodegas(id)
-    ON DELETE CASCADE ON UPDATE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+-- Dump completed on 2025-11-03 11:37:34

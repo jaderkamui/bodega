@@ -11,8 +11,8 @@ $mensaje = '';
 $rolesMap      = ['admin'=>'Administrador','editor'=>'Editor','viewer'=>'Lector'];
 $rolesValidos  = ['viewer','editor','admin'];
 $areasValidas  = ['Radios','Redes','SCA','Libreria'];
-$divMapFull    = ['CHQ'=>'Chuquicamata','RT'=>'Radomiro Tomic','DMH'=>'Ministro Hales','GM'=>'Gabriela Mistral'];
-$divIdByCode   = ['CHQ'=>1,'RT'=>2,'DMH'=>3,'GM'=>4];
+$divMapFull    = ['CHQ'=>'Chuquicamata','RT'=>'Radomiro Tomic','DMH'=>'Ministro Hales','GM'=>'Gabriela Mistral','DCHS'=>'Chuquicamata Subterranea'];
+$divIdByCode   = ['CHQ'=>1,'RT'=>2,'DMH'=>3,'GM'=>4,'DCHS'=>5];
 function fullDivName($code,$map){ return $map[$code] ?? $code; }
 
 // Todas las bodegas (lista plana)
