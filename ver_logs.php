@@ -19,11 +19,9 @@ $accionesMap = [
     'request_delivered'     => 'Entrega de producto',
     'user_deleted'          => 'Usuario eliminado',
     'user_registered'       => 'Nuevo usuario',
-    // 👇 Nuevos eventos
-    'user_bodegas_updated'  => 'Bodegas actualizadas',
+    'user_bodegas_updated'  => 'Bodegas Usuario actualizadas',
     'bodega_updated'        => 'Bodega actualizada',
     'bodega_created'        => 'Bodega creada',
-    'user_updated_role'     => 'Rol actualizado',
     'user_row_updated'      => 'Usuario actualizado',
     'bodega_deleted'        => 'Bodega eliminada',
     
@@ -41,9 +39,7 @@ $legacyPatterns = [
     'request_delivered'     => 'Entregó producto%',
     'user_deleted'          => 'Eliminó al usuario%',
     'user_registered'       => 'Registró al usuario%',
-    // 👇 por si algún legacy escribió textos similares
     'user_bodegas_updated'  => 'Actualizó bodegas %',
-    'user_updated_role'     => 'Actualizó rol %',
     'user_row_updated'      => 'Actualizó usuario%',
     'bodega_updated'        => 'Actualizo Bodega',
     'bodega_created'        => 'Creo Bodega',
@@ -123,9 +119,12 @@ $notiCount = count($notificaciones);
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Logs del Sistema</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+  <title>Registro - Bodega Sonda</title>
+  <!-- Bootstrap local -->
+  <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
+
+  <!-- Bootstrap Icons local -->
+  <link rel="stylesheet" href="assets/bootstrap-icons/bootstrap-icons.css">
 </head>
 <body class="bg-light">
 
@@ -233,9 +232,9 @@ $notiCount = count($notificaciones);
 </div>
 
 <!-- DataTables -->
-<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.0/dist/jquery.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
+<script src="assets/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="assets/datatables/js/jquery.dataTables.min.js"></script>
+<script src="assets/datatables/js/dataTables.bootstrap5.min.js"></script>
 <script>
   $(function(){
     $('#logs').DataTable({

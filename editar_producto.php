@@ -180,7 +180,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $producto) {
 <head>
     <meta charset="UTF-8">
     <title>Editar Producto - Bodega Sonda</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
+
+  <!-- Bootstrap Icons local -->
+  <link rel="stylesheet" href="assets/bootstrap-icons/bootstrap-icons.css">
     <style>.noti-dropdown{max-height:300px;overflow-y:auto;}</style>
 </head>
 <body class="bg-light">
@@ -311,6 +314,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $producto) {
     <?php endif; ?>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="assets/bootstrap/js/bootstrap.bundle.min.js"></script>
+
 </body>
 </html>

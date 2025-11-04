@@ -130,8 +130,12 @@ if ($esAdmin) {
 <head>
     <meta charset="UTF-8">
     <title>Panel de Control - Bodega Sonda</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap5.min.css">
+  <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
+
+  <!-- Bootstrap Icons local -->
+  <link rel="stylesheet" href="assets/bootstrap-icons/bootstrap-icons.css">
+<link rel="stylesheet" href="assets/datatables/css/dataTables.bootstrap5.min.css">
+
     <style>
         .noti-dropdown { max-height: 300px; overflow-y: auto; }
         .bodega-pill { font-weight: 600; }
@@ -304,10 +308,10 @@ if ($esAdmin) {
 </div>
 
 <!-- DataTables JS -->
-<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.0/dist/jquery.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap5.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="assets/bootstrap/js/bootstrap.bundle.min.js"></script>
+<script src="assets/datatables/js/jquery.dataTables.min.js"></script>
+<script src="assets/datatables/js/dataTables.bootstrap5.min.js"></script>
+
 <script>
     $(document).ready(function () {
         $('#productos').DataTable({
