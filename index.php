@@ -90,7 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Iniciar Sesión - Bodega Sonda</title>
+    <title>Iniciar Sesión - Bodega</title>
   <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
 
   <!-- Bootstrap Icons local -->

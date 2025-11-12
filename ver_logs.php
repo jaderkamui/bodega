@@ -119,7 +119,7 @@ $notiCount = count($notificaciones);
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Registro - Bodega Sonda</title>
+  <title>Registro - Bodega</title>
   <!-- Bootstrap local -->
   <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
 
@@ -132,7 +132,7 @@ $notiCount = count($notificaciones);
 <nav class="navbar navbar-dark bg-dark border-bottom shadow-sm">
     <div class="container-fluid d-flex justify-content-between align-items-center">
         <img src="assets/logo.png" alt="Sonda Logo" height="120">
-        <span class="navbar-brand h4 mb-0 text-white">Sistema de Bodega Sonda</span>
+        <span class="navbar-brand h4 mb-0 text-white">Sistema de Bodega</span>
         <div class="d-flex align-items-center">
             <span class="me-3 text-white">
                 Bienvenido 👤 <?= htmlspecialchars($_SESSION['user']) ?>

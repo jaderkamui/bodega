@@ -80,7 +80,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <html lang="es">
 <head>
 <meta charset="utf-8">
-<title>Buscar por código de barras - Bodega Sonda</title>
+<title>Buscar por código de barras - Bodega</title>
   <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
 
   <!-- Bootstrap Icons local -->
@@ -131,7 +131,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <nav class="navbar navbar-dark bg-dark border-bottom shadow-sm">
     <div class="container-fluid d-flex justify-content-between align-items-center">
         <img src="assets/logo.png" alt="Sonda Logo" height="120">
-        <span class="navbar-brand h4 mb-0 text-white">Sistema de Bodega Sonda</span>
+        <span class="navbar-brand h4 mb-0 text-white">Sistema de Bodega</span>
         <div class="d-flex align-items-center">
             <span class="me-3 text-white">
                 Bienvenido 👤 <?= htmlspecialchars($_SESSION['user']) ?>

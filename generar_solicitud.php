@@ -133,7 +133,7 @@ if ($product && $_SERVER['REQUEST_METHOD'] === 'POST') {
     <nav class="navbar navbar-dark bg-dark border-bottom shadow-sm">
         <div class="container-fluid d-flex justify-content-between align-items-center">
             <img src="assets/logo.png" alt="Sonda Logo" height="120">
-            <span class="navbar-brand h4 mb-0 text-white">Sistema de Bodega Sonda</span>
+            <span class="navbar-brand h4 mb-0 text-white">Sistema de Bodega</span>
             <div>
             <span class="me-3 text-white">
                 Bienvenido 👤 <?= htmlspecialchars($_SESSION['user']) ?>

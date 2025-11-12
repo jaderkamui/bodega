@@ -129,7 +129,7 @@ if ($esAdmin) {
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Panel de Control - Bodega Sonda</title>
+    <title>Panel de Control - Bodega</title>
   <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
 
   <!-- Bootstrap Icons local -->
@@ -153,7 +153,7 @@ if ($esAdmin) {
 <nav class="navbar navbar-dark bg-dark border-bottom shadow-sm">
     <div class="container-fluid d-flex justify-content-between align-items-center">
         <img src="assets/logo.png" alt="Sonda Logo" height="120">
-        <span class="navbar-brand h4 mb-0 text-white">Sistema de Bodega Sonda</span>
+        <span class="navbar-brand h4 mb-0 text-white">Sistema de Bodega</span>
         <div class="d-flex align-items-center">
             <span class="me-3 text-white">
                 Bienvenido 👤 <?= htmlspecialchars($_SESSION['user']) ?>
@@ -322,7 +322,7 @@ if ($esAdmin) {
 </script>
 
 <footer class="bg-light text-center text-muted py-3 mt-5 border-top">
-    Desarrollado por Jader Muñoz - Sonda 2025
+    Desarrollado por Jader Muñoz - 2025
 </footer>
 
 </body>
