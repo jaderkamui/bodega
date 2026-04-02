@@ -13,7 +13,7 @@ Incluye control de usuarios por roles y ahora, soporte completo para **divisione
 ![Login](src/img/login.png)
 
 # Vista del Panel Principal
-![Dashboard](src/img/productos.png)
+![Dashboard](assets/img/dashboard.png)
 
 ### 🔐 Gestión de usuarios
 - Registro e inicio de sesión con roles:
