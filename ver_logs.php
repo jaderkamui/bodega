@@ -1,80 +1,109 @@
 <?php
 session_start();
-if (!isset($_SESSION['user']) || $_SESSION['role'] !== 'admin') {
+if (!isset($_SESSION['user']) || ($_SESSION['role'] ?? '') !== 'admin') {
     header("Location: index.php");
     exit;
 }
 
 require 'config/db.php';
 
-/* ===== 1) Mapeo de acciones → etiquetas legibles ===== */
+/* Helpers: detectar columnas */
+function columnExists(PDO $conn, string $table, string $column): bool {
+    $sql = "SELECT 1 FROM information_schema.COLUMNS 
+            WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ? LIMIT 1";
+    $st = $conn->prepare($sql);
+    $st->execute([$table, $column]);
+    return (bool)$st->fetchColumn();
+}
+
+$adminId = (int)($_SESSION['user_id'] ?? 0);
+$mensaje = '';
+$areaUsuario  = $_SESSION['area'] ?? '';
+$divisionName = $_SESSION['division_name'] ?? null;
+
+/* Detectar soporte de divisiones en users */
+$hasUserDivisionId   = columnExists($conn, 'users', 'division_id');
+$hasUserDivisionName = columnExists($conn, 'users', 'division_name');
+$hasDivisionesTable  = true;
+try {
+    $conn->query("SELECT 1 FROM divisiones LIMIT 1");
+} catch (Throwable $e) {
+    $hasDivisionesTable = false;
+}
+
+/* Acciones unificadas y etiquetas legibles */
 $accionesMap = [
-    'create_product'        => 'Crear producto',
-    'edit_product'          => 'Actualizar producto',
-    'delete_product'        => 'Eliminar producto',
-    'scan_increment'        => 'Escaneo (+1)',
-    'request_created'       => 'Solicitud creada',
-    'request_updated'       => 'Solicitud actualizada',
-    'request_status'        => 'Cambio de estado de solicitud',
-    'request_delivered'     => 'Entrega de producto',
-    'user_deleted'          => 'Usuario eliminado',
-    'user_registered'       => 'Nuevo usuario',
-    'user_bodegas_updated'  => 'Bodegas Usuario actualizadas',
-    'bodega_updated'        => 'Bodega actualizada',
-    'bodega_created'        => 'Bodega creada',
-    'user_row_updated'      => 'Usuario actualizado',
-    'bodega_deleted'        => 'Bodega eliminada',
-    
+    'product_created'     => 'Creación de producto',
+    'product_modified'    => 'Modificación de producto',      // unifica: stock_update, edit_product, item_status
+    'product_deleted'     => 'Eliminación de producto',
+    'product_incremented' => 'Incremento por escaneo',
+
+    'solicitud_creada'    => 'Solicitud creada',
+    'solicitud_estado'    => 'Cambio de estado en solicitud/ítem',
+    'entrega_registrada'  => 'Entrega registrada',
+
+    'user_registered'     => 'Nuevo usuario registrado',
+    'user_updated'        => 'Usuario actualizado',
+    'user_deleted'        => 'Usuario eliminado',
+
+    'bodega_created'      => 'Bodega creada',
+    'bodega_updated'      => 'Bodega actualizada',
+    'bodega_deleted'      => 'Bodega eliminada',
+
+    'division_created'    => 'División creada',
+    'division_updated'    => 'División actualizada',
+    'division_deleted'    => 'División eliminada',
 ];
 
-/* ===== 2) Patrones legacy (si en “action” venían frases) ===== */
-$legacyPatterns = [
-    'create_product'        => 'Agregó un producto%',
-    'edit_product'          => 'Actualizó un producto%',
-    'delete_product'        => 'Eliminó el producto%',
-    'scan_increment'        => 'Escaneo +1%',
-    'request_created'       => 'Creó solicitud%',
-    'request_updated'       => 'Actualizó solicitud%',
-    'request_status'        => 'Cambio de estado de solicitud%',
-    'request_delivered'     => 'Entregó producto%',
-    'user_deleted'          => 'Eliminó al usuario%',
-    'user_registered'       => 'Registró al usuario%',
-    'user_bodegas_updated'  => 'Actualizó bodegas %',
-    'user_row_updated'      => 'Actualizó usuario%',
-    'bodega_updated'        => 'Actualizo Bodega',
-    'bodega_created'        => 'Creo Bodega',
-    'bodega_deleted'        => 'Elimino Bodega',
-];
+/* Filtros */
+$filtroAccion   = $_GET['filtro']   ?? 'Todas';
+$filtroUsuario  = $_GET['usuario']  ?? 'Todos';
+$filtroDivision = $_GET['division'] ?? 'Todas';
 
-/* ===== 3) Filtros ===== */
-$filtroAccion  = $_GET['filtro']  ?? 'Todas';
-$filtroUsuario = $_GET['usuario'] ?? 'Todos';
+/* Construir query con filtros */
+$selectDivision = "NULL AS division_label";
+$joinDivision   = "";
 
-/* ===== 4) Query con filtros ===== */
+if ($hasUserDivisionId && $hasDivisionesTable) {
+    $selectDivision = "d.nombre AS division_label";
+    $joinDivision   = "LEFT JOIN divisiones d ON d.id = u.division_id";
+} elseif ($hasUserDivisionName) {
+    $selectDivision = "u.division_name AS division_label";
+}
+
 $query = "
-  SELECT l.id, l.action, l.details, l.old_value, l.new_value, l.created_at, u.username
-  FROM logs l
-  LEFT JOIN users u ON l.user_id = u.id
-  WHERE 1=1
+    SELECT
+        l.id, l.action, l.details, l.old_value, l.new_value, l.created_at,
+        u.username,
+        $selectDivision
+    FROM logs l
+    LEFT JOIN users u ON l.user_id = u.id
+    $joinDivision
+    WHERE 1=1
 ";
 $params = [];
 
-/* Acción */
+/* Filtro por acción */
 if ($filtroAccion !== 'Todas') {
-    if (isset($legacyPatterns[$filtroAccion])) {
-        $query .= " AND (l.action = ? OR l.action LIKE ?)";
-        $params[] = $filtroAccion;
-        $params[] = $legacyPatterns[$filtroAccion];
-    } else {
-        $query .= " AND l.action = ?";
-        $params[] = $filtroAccion;
-    }
+    $query .= " AND l.action = ?";
+    $params[] = $filtroAccion;
 }
 
-/* Usuario */
+/* Filtro por usuario */
 if ($filtroUsuario !== 'Todos') {
     $query .= " AND u.username = ?";
     $params[] = $filtroUsuario;
+}
+
+/* Filtro por división */
+if ($filtroDivision !== 'Todas') {
+    if ($hasUserDivisionId && $hasDivisionesTable) {
+        $query .= " AND d.nombre = ?";
+        $params[] = $filtroDivision;
+    } elseif ($hasUserDivisionName) {
+        $query .= " AND u.division_name = ?";
+        $params[] = $filtroDivision;
+    }
 }
 
 $query .= " ORDER BY l.created_at DESC";
@@ -83,109 +112,103 @@ $stmt = $conn->prepare($query);
 $stmt->execute($params);
 $logs = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-/* ===== 5) Listas para los selects ===== */
-$accionesUnicas  = array_keys($accionesMap);
-$usuariosUnicos  = $conn->query("SELECT DISTINCT username FROM users ORDER BY username")->fetchAll(PDO::FETCH_COLUMN);
-
-/* ===== 6) Helper de presentación ===== */
-function presentarAccionYDetalle(array $row, array $map, array $patterns): array {
-    $action  = $row['action']  ?? '';
-    $details = $row['details'] ?? '';
-
-    if (isset($map[$action])) {
-        return [$map[$action], ($details !== '' ? $details : '-')];
-    }
-    foreach ($patterns as $code => $like) {
-        $prefix = rtrim($like, '%');
-        if (stripos($action, $prefix) === 0) {
-            return [$map[$code] ?? $code, ($details !== '' ? $details : $action)];
-        }
-    }
-    return [$action, ($details !== '' ? $details : '-')];
+/* Listas para selects */
+$accionesUnicas = array_keys($accionesMap);
+$usuariosUnicos = $conn->query("SELECT DISTINCT username FROM users WHERE username IS NOT NULL AND username <> '' ORDER BY username")->fetchAll(PDO::FETCH_COLUMN);
+$divisionesUnicas = [];
+if ($hasUserDivisionId && $hasDivisionesTable) {
+    $divisionesUnicas = $conn->query("SELECT nombre FROM divisiones ORDER BY nombre")->fetchAll(PDO::FETCH_COLUMN);
+} elseif ($hasUserDivisionName) {
+    $divisionesUnicas = $conn->query("SELECT DISTINCT division_name FROM users WHERE division_name IS NOT NULL AND division_name <> '' ORDER BY division_name")->fetchAll(PDO::FETCH_COLUMN);
 }
+$divisionesUnicas = array_unique(array_filter($divisionesUnicas ?? []));
 
-$areaUsuario   = $_SESSION['area'] ?? null;
-$divisionName  = $_SESSION['division_name'] ?? null;
-$userId   = $_SESSION['user_id'] ?? null;
-$esAdmin  = ($_SESSION['role'] ?? '') === 'admin';
-
-// Notificaciones navbar
-$userIdSess = (int)$_SESSION['user_id'];
+/* Datos navbar (notificaciones) */
+$userIdSess = (int)($_SESSION['user_id'] ?? 0);
 $notiStmt = $conn->prepare("SELECT * FROM notificaciones WHERE user_id = ? AND leido = 0 ORDER BY created_at DESC LIMIT 5");
-$notiStmt->execute([$userIdSess]); $notificaciones = $notiStmt->fetchAll(PDO::FETCH_ASSOC);
+$notiStmt->execute([$userIdSess]);
+$notificaciones = $notiStmt->fetchAll(PDO::FETCH_ASSOC);
 $notiCount = count($notificaciones);
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Registro - Bodega</title>
-  <!-- Bootstrap local -->
+  <title>Registro de Actividades - Bodega</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
-
-  <!-- Bootstrap Icons local -->
   <link rel="stylesheet" href="assets/bootstrap-icons/bootstrap-icons.css">
+  <link rel="stylesheet" href="assets/datatables/css/dataTables.bootstrap5.min.css">
+  <style>
+    .noti-dropdown { max-height: 300px; overflow-y: auto; }
+  </style>
 </head>
 <body class="bg-light">
 
-<!-- NAV coherente -->
+<!-- Navbar -->
 <nav class="navbar navbar-dark bg-dark border-bottom shadow-sm">
-    <div class="container-fluid d-flex justify-content-between align-items-center">
-        <img src="assets/logo.png" alt="Sonda Logo" height="120">
-        <span class="navbar-brand h4 mb-0 text-white">Sistema de Bodega</span>
-        <div class="d-flex align-items-center">
-            <span class="me-3 text-white">
-                Bienvenido 👤 <?= htmlspecialchars($_SESSION['user']) ?>
-                / (<?= htmlspecialchars($_SESSION['role']) ?><?= $areaUsuario ? " - ".htmlspecialchars($areaUsuario) : "" ?>)
-                <?php if ($divisionName): ?><span class="badge text-bg-secondary ms-2"><?= htmlspecialchars($divisionName) ?></span><?php endif; ?>
-            </span>
-            <div class="dropdown me-3">
-                <button class="btn btn-outline-light position-relative dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
-                    🔔
-                    <?php if ($notiCount > 0): ?>
-                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"><?= $notiCount ?></span>
-                    <?php endif; ?>
-                </button>
-                <ul class="dropdown-menu dropdown-menu-end" style="max-height:300px;overflow-y:auto">
-                    <?php if ($notiCount === 0): ?>
-                        <li><span class="dropdown-item-text text-muted">No tienes notificaciones nuevas</span></li>
-                    <?php else: foreach ($notificaciones as $n): ?>
-                        <li>
-                            <a class="dropdown-item" href="<?= htmlspecialchars($n['link']) ?>">
-                                <?= htmlspecialchars($n['mensaje']) ?><br>
-                                <small class="text-muted"><?= htmlspecialchars($n['created_at']) ?></small>
-                            </a>
-                        </li>
-                        <li><hr class="dropdown-divider"></li>
-                    <?php endforeach; endif; ?>
-                </ul>
-            </div>
-            <a href="dashboard.php" class="btn btn-outline-light me-2">🏠 Dashboard</a>
-            <a href="logout.php" class="btn btn-outline-light">Cerrar sesión</a>
-        </div>
+  <div class="container-fluid d-flex justify-content-between align-items-center">
+    <img src="assets/logo.png" alt="Sonda Logo" height="120">
+    <span class="navbar-brand h4 mb-0 text-white">Sistema de Bodega</span>
+    <div class="d-flex align-items-center">
+      <span class="me-3 text-white">
+        <?= htmlspecialchars($_SESSION['user']) ?>
+        / (<?= htmlspecialchars($_SESSION['role']) ?><?= $areaUsuario ? " - ".htmlspecialchars($areaUsuario) : "" ?>)
+        <?php if ($divisionName): ?>
+          <span class="badge text-bg-secondary ms-2"><?= htmlspecialchars($divisionName) ?></span>
+        <?php endif; ?>
+      </span>
+
+      <div class="dropdown me-2">
+        <button class="btn btn-outline-light btn-sm position-relative dropdown-toggle" type="button" data-bs-toggle="dropdown">
+          🔔
+          <?php if ($notiCount > 0): ?>
+            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"><?= $notiCount ?></span>
+          <?php endif; ?>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end noti-dropdown">
+          <?php if ($notiCount === 0): ?>
+            <li><span class="dropdown-item-text text-muted">No tienes notificaciones nuevas</span></li>
+          <?php else: foreach ($notificaciones as $n): ?>
+            <li>
+              <a class="dropdown-item" href="<?= htmlspecialchars($n['link']) ?>">
+                <?= htmlspecialchars($n['mensaje']) ?><br>
+                <small class="text-muted"><?= htmlspecialchars($n['created_at']) ?></small>
+              </a>
+            </li>
+            <li><hr class="dropdown-divider"></li>
+          <?php endforeach; endif; ?>
+          <li><a class="dropdown-item text-center" href="ver_notificaciones.php">📜 Ver todas</a></li>
+        </ul>
+      </div>
+
+      <a href="dashboard.php" class="btn btn-outline-light btn-sm me-1">🏠</a>
+      <a href="logout.php" class="btn btn-outline-light btn-sm">⏻</a>
     </div>
+  </div>
 </nav>
 
 <div class="container mt-5">
   <h3 class="mb-4">Historial de Actividades</h3>
 
   <!-- Filtros -->
-  <form method="get" class="row g-3 mb-3">
+  <form method="get" class="row g-3 mb-4">
     <div class="col-md-4">
-      <label class="form-label">Filtrar por acción:</label>
-      <select name="filtro" onchange="this.form.submit()" class="form-select">
-        <option value="Todas" <?= $filtroAccion === 'Todas' ? 'selected' : '' ?>>Todas</option>
+      <label class="form-label">Acción</label>
+      <select name="filtro" class="form-select" onchange="this.form.submit()">
+        <option value="Todas">Todas</option>
         <?php foreach ($accionesUnicas as $codigo): ?>
           <option value="<?= htmlspecialchars($codigo) ?>" <?= $filtroAccion === $codigo ? 'selected' : '' ?>>
-            <?= htmlspecialchars($accionesMap[$codigo]) ?>
+            <?= htmlspecialchars($accionesMap[$codigo] ?? $codigo) ?>
           </option>
         <?php endforeach; ?>
       </select>
     </div>
+
     <div class="col-md-4">
-      <label class="form-label">Filtrar por usuario:</label>
-      <select name="usuario" onchange="this.form.submit()" class="form-select">
-        <option value="Todos" <?= $filtroUsuario === 'Todos' ? 'selected' : '' ?>>Todos</option>
+      <label class="form-label">Usuario</label>
+      <select name="usuario" class="form-select" onchange="this.form.submit()">
+        <option value="Todos">Todos</option>
         <?php foreach ($usuariosUnicos as $u): ?>
           <option value="<?= htmlspecialchars($u) ?>" <?= $filtroUsuario === $u ? 'selected' : '' ?>>
             <?= htmlspecialchars($u) ?>
@@ -193,54 +216,76 @@ $notiCount = count($notificaciones);
         <?php endforeach; ?>
       </select>
     </div>
+
+    <div class="col-md-4">
+      <label class="form-label">División</label>
+      <select name="division" class="form-select" onchange="this.form.submit()" <?= empty($divisionesUnicas) ? 'disabled' : '' ?>>
+        <option value="Todas">Todas</option>
+        <?php foreach ($divisionesUnicas as $d): ?>
+          <option value="<?= htmlspecialchars($d) ?>" <?= $filtroDivision === $d ? 'selected' : '' ?>>
+            <?= htmlspecialchars($d) ?>
+          </option>
+        <?php endforeach; ?>
+      </select>
+      <?php if (empty($divisionesUnicas)): ?>
+        <small class="text-muted d-block mt-1">No hay divisiones registradas</small>
+      <?php endif; ?>
+    </div>
   </form>
 
   <?php if (empty($logs)): ?>
-    <div class="alert alert-info">No hay actividades registradas.</div>
+    <div class="alert alert-info">No hay registros de actividades.</div>
   <?php else: ?>
-    <table id="logs" class="table table-bordered table-striped align-middle">
-      <thead class="table-dark">
-        <tr>
-          <th>ID</th>
-          <th>Usuario</th>
-          <th>Acción</th>
-          <th>Detalles</th>
-          <th>Valor anterior</th>
-          <th>Valor nuevo</th>
-          <th>Fecha y hora</th>
-        </tr>
-      </thead>
-      <tbody>
-        <?php foreach ($logs as $row): 
-          [$accionLabel, $det] = presentarAccionYDetalle($row, $accionesMap, $legacyPatterns);
-        ?>
+    <div class="table-responsive">
+      <table id="logsTable" class="table table-bordered table-striped table-hover">
+        <thead class="table-dark">
           <tr>
-            <td><?= (int)$row['id'] ?></td>
-            <td><?= $row['username'] !== null ? htmlspecialchars($row['username']) : '(usuario eliminado)' ?></td>
-            <td><span class="badge bg-secondary"><?= htmlspecialchars($accionLabel) ?></span></td>
-            <td><?= htmlspecialchars($det) ?></td>
-            <td><?= $row['old_value'] !== null ? htmlspecialchars($row['old_value']) : '-' ?></td>
-            <td><?= $row['new_value'] !== null ? htmlspecialchars($row['new_value']) : '-' ?></td>
-            <td><?= htmlspecialchars($row['created_at']) ?></td>
+            <th>ID</th>
+            <th>Usuario</th>
+            <th>División</th>
+            <th>Acción</th>
+            <th>Detalles</th>
+            <th>Valor anterior</th>
+            <th>Valor nuevo</th>
+            <th>Fecha</th>
           </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
+        </thead>
+        <tbody>
+          <?php foreach ($logs as $row): 
+            $accionLabel = $accionesMap[$row['action']] ?? $row['action'];
+            $detalles = $row['details'] ? htmlspecialchars($row['details']) : '—';
+            $old = $row['old_value'] ? htmlspecialchars($row['old_value']) : '—';
+            $new = $row['new_value'] ? htmlspecialchars($row['new_value']) : '—';
+          ?>
+            <tr>
+              <td><?= (int)$row['id'] ?></td>
+              <td><?= htmlspecialchars($row['username'] ?? '(eliminado)') ?></td>
+              <td><?= htmlspecialchars($row['division_label'] ?? '—') ?></td>
+              <td><span class="badge bg-secondary"><?= htmlspecialchars($accionLabel) ?></span></td>
+              <td><?= $detalles ?></td>
+              <td><?= $old ?></td>
+              <td><?= $new ?></td>
+              <td><?= htmlspecialchars($row['created_at']) ?></td>
+            </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
   <?php endif; ?>
 
-  <a href="dashboard.php" class="btn btn-secondary mt-3">Volver</a>
+  <a href="dashboard.php" class="btn btn-secondary mt-4">Volver al panel</a>
 </div>
 
-<!-- DataTables -->
+<script src="assets/jquery/jquery-3.7.1.min.js"></script>
 <script src="assets/bootstrap/js/bootstrap.bundle.min.js"></script>
 <script src="assets/datatables/js/jquery.dataTables.min.js"></script>
 <script src="assets/datatables/js/dataTables.bootstrap5.min.js"></script>
 <script>
-  $(function(){
-    $('#logs').DataTable({
-      language: { url: '//cdn.datatables.net/plug-ins/1.13.6/i18n/Spanish.json' },
-      pageLength: 10,
-      order: [[0, 'desc']]
+  $(document).ready(function() {
+    $('#logsTable').DataTable({
+      pageLength: 15,
+      order: [[7, 'desc']], // orden por fecha descendente
+      language: { url: 'assets/datatables/i18n/es-ES.json' }
     });
   });
 </script>

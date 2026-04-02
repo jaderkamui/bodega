@@ -1,4 +1,8 @@
 <?php
+// Configuración global de zona horaria para Chile continental
+date_default_timezone_set('America/Santiago');
+
+// Resto de tu código de conexión a BD...
 $host = '127.0.0.1';
 $db   = 'bodega_sonda';
 $user = 'root';

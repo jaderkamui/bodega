@@ -176,38 +176,65 @@ $notiCount = count($notificaciones);
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <title>Administrar Bodegas</title>
-  <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
-
-  <!-- Bootstrap Icons local -->
-  <link rel="stylesheet" href="assets/bootstrap-icons/bootstrap-icons.css">
-  <style>
-    .table td, .table th { vertical-align: middle; }
-    .tight .form-control, .tight .form-select{ padding:.2rem .4rem; height:2rem; font-size:.9rem; }
-    .tight .btn{ padding:.25rem .5rem; font-size:.85rem; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Gestión de Bodegas - Bodega</title>
+    <link rel="stylesheet" href="assets/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="assets/bootstrap-icons/bootstrap-icons.css">
+    <style>
+        body { font-size:14px; background-color:#f5f6fa; }
+        .navbar-logo { height:60px; }
+        @media (min-width:768px) { .navbar-logo { height:90px; } }
+        .navbar-brand-title { font-size:1.1rem; }
+        @media (min-width:768px) { .navbar-brand-title { font-size:1.3rem; } }
+        .noti-dropdown { max-height:300px; overflow-y:auto; }
+        .page-padding { padding-bottom:3rem; }
+        .table-sm > :not(caption) > * > * { padding:.35rem .45rem; }
+        .small-table { table-layout:fixed; }
+        th.col-nombre { width:170px; }
+        th.col-email { width:160px; }
+        th.col-rol { width:130px; }
+        th.col-area { width:160px; }
+        th.col-bodegas { width:230px; }
+        th.col-division { width:150px; }
+        th.col-acciones { width:160px; }
+        .cell-input { height:31px; padding:.25rem .5rem; font-size:13px; }
+        .email-wrap { max-width:160px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; font-size:13px; }
+        .bodega-grid { display:flex; flex-direction:column; gap:.25rem; max-height:220px; overflow-y:auto; padding-right:4px; }
+        .bodega-item { background:#fff; border:1px solid #e5e7eb; border-radius:.4rem; padding:.25rem .45rem; font-size:12px; display:flex; align-items:center; }
+        .bodega-item input { margin-right:.35rem; transform:scale(.9); }
+        .btn-compact { padding:.28rem .55rem; font-size:.8rem; }
+        @media (max-width:576px) {
+            th.col-email, td.col-email,
+            th.col-bodegas, td.col-bodegas { display:none; }
+        }
+    </style>
 </head>
-<body class="bg-light">
+<body>
 
 <nav class="navbar navbar-dark bg-dark border-bottom shadow-sm">
     <div class="container-fluid d-flex justify-content-between align-items-center">
-        <img src="assets/logo.png" alt="Sonda Logo" height="120">
+        <img src="assets/logo.png" alt="Sonda Logo" class="navbar-logo">
         <span class="navbar-brand h4 mb-0 text-white">Sistema de Bodega</span>
         <div class="d-flex align-items-center">
             <span class="me-3 text-white">
-                Bienvenido 👤 <?= htmlspecialchars($_SESSION['user']) ?>
-                / (<?= htmlspecialchars($_SESSION['role']) ?><?= $areaUsuario ? " - ".htmlspecialchars($areaUsuario) : "" ?>)
-                <?php if ($divisionName): ?><span class="badge text-bg-secondary ms-2"><?= htmlspecialchars($divisionName) ?></span><?php endif; ?>
+                <?= htmlspecialchars($_SESSION['user']) ?>
+                (<?= htmlspecialchars($_SESSION['role']) ?><?= $areaUsuario ? " - ".htmlspecialchars($areaUsuario) : "" ?>)
+                <?php if ($divisionName): ?>
+                    <span class="badge text-bg-secondary ms-1"><?= htmlspecialchars($divisionName) ?></span>
+                <?php endif; ?>
             </span>
-            <div class="dropdown me-3">
-                <button class="btn btn-outline-light position-relative dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+
+            <div class="dropdown me-2">
+                <button class="btn btn-outline-light btn-sm position-relative dropdown-toggle" type="button" data-bs-toggle="dropdown">
                     🔔
                     <?php if ($notiCount > 0): ?>
-                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"><?= $notiCount ?></span>
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger">
+                            <?= $notiCount ?>
+                        </span>
                     <?php endif; ?>
                 </button>
-                <ul class="dropdown-menu dropdown-menu-end" style="max-height:300px;overflow-y:auto">
+                <ul class="dropdown-menu dropdown-menu-end noti-dropdown">
                     <?php if ($notiCount === 0): ?>
                         <li><span class="dropdown-item-text text-muted">No tienes notificaciones nuevas</span></li>
                     <?php else: foreach ($notificaciones as $n): ?>
@@ -221,8 +248,9 @@ $notiCount = count($notificaciones);
                     <?php endforeach; endif; ?>
                 </ul>
             </div>
-            <a href="dashboard.php" class="btn btn-outline-light me-2">🏠 Dashboard</a>
-            <a href="logout.php" class="btn btn-outline-light">Cerrar sesión</a>
+
+            <a href="dashboard.php" class="btn btn-outline-light btn-sm me-1">🏠</a>
+            <a href="logout.php" class="btn btn-outline-light btn-sm">⏻</a>
         </div>
     </div>
 </nav>

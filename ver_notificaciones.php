@@ -58,7 +58,6 @@ $notificaciones = $stmt->fetchAll(PDO::FETCH_ASSOC);
       <?php if (!$esAdmin): ?>
         <a href="mis_solicitudes.php" class="btn btn-outline-warning me-2">📑 Mis Solicitudes</a>
       <?php endif; ?>
-            <a href="mis_solicitudes.php" class="btn btn-outline-warning me-2">📑 Mis Solicitudes</a>
             <a href="dashboard.php" class="btn btn-outline-light me-2">🏠 Dashboard</a>
             <a href="logout.php" class="btn btn-outline-light">Cerrar sesión</a>
     </div>
